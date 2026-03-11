@@ -1,11 +1,13 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-
+import Navbar from '../components/Navbar';
 export default function ChatScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.texto}>Chat</Text>
       <Text style={styles.sub}>(tela placeholder)</Text>
+
+      <Navbar  />
     </View>
   );
 }

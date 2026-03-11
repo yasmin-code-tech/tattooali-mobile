@@ -1,11 +1,16 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import Navbar from '../components/Navbar';
 
 export default function PerfilClienteScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.texto}>Perfil do Cliente</Text>
       <Text style={styles.sub}>(tela placeholder)</Text>
+    
+    
+      <Navbar></Navbar>
+    
     </View>
   );
 }

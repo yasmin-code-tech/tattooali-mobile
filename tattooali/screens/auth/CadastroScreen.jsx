@@ -18,12 +18,15 @@ export default function CadastroScreen() {
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [cpf,setCpf] = useState('');
+    
   const [tipoConta, setTipoConta] = useState('cliente');
 
   const [nomeFocused, setNomeFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [senhaFocused, setSenhaFocused] = useState(false);
   const [confirmarFocused, setConfirmarFocused] = useState(false);
+  const [cpfFocused, setCpfFocused] = useState(false);
 
   return (
     <KeyboardAvoidingView
@@ -54,6 +57,20 @@ export default function CadastroScreen() {
             onChangeText={setNome}
             onFocus={() => setNomeFocused(true)}
             onBlur={() => setNomeFocused(false)}
+          />
+        </View>
+
+        <View>
+          <Text style={styles.label}>CPF</Text>
+          <TextInput
+            style={[styles.input, cpfFocused && styles.inputFocused]}
+            placeholder="000.000.000-00"
+            placeholderTextColor={colors.text3}
+            keyboardType="numeric"
+            value={cpf}
+            onChangeText={setCpf}
+            onFocus={() => setCpfFocused(true)}
+            onBlur={() => setCpfFocused(false)}
           />
         </View>
 

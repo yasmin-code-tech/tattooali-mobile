@@ -1,17 +1,23 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
-  { label: 'BUSCAR', icon: '🔍', route: 'Busca'  },
-  { label: 'AGENDA', icon: '📅', route: 'Agenda' },
-  { label: 'CHAT',   icon: '💬', route: 'Chat'   },
+  { label: 'BUSCAR', icon: '🔍', route: 'Busca'        },
+  { label: 'AGENDA', icon: '📅', route: 'Agenda'       },
+  { label: 'CHAT',   icon: '💬', route: 'Chat'         },
   { label: 'PERFIL', icon: '👤', route: 'PerfilCliente' },
 ];
 
 export default function AppLayout({ children }) {
   const navigation = useNavigation();
   const route      = useRoute();
+  const { logout } = useAuth();
+
+  function handleLogout() {
+     logout();
+  }
 
   return (
     <View style={styles.root}>
@@ -34,6 +40,16 @@ export default function AppLayout({ children }) {
             </TouchableOpacity>
           );
         })}
+
+        {/* Logout */}
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={handleLogout}
+          activeOpacity={0.75}
+        >
+          <Text style={styles.navIcon}>🚪</Text>
+          <Text style={[styles.navLabel, styles.navLabelLogout]}>SAIR</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -81,5 +97,8 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: '#e53030',
+  },
+  navLabelLogout: {
+    color: '#f87171',
   },
 });
