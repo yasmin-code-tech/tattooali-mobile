@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import Navbar from '../components/Navbar';
 
 const SETTINGS_ITEMS = [
   { emoji: '📅', label: 'Minha Agenda',            bg: 'rgba(59,130,246,0.1)',  route: 'Agenda', danger: false },
@@ -81,28 +82,7 @@ export default function PerfilScreen({ route }) {
         </View>
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Busca')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Busca')}>
-          <Text style={styles.navIcon}>🔍</Text>
-          <Text style={styles.navLabel}>BUSCAR</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Agenda')}>
-          <Text style={styles.navIcon}>📅</Text>
-          <Text style={styles.navLabel}>AGENDA</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Chat')}>
-          <Text style={styles.navIcon}>💬</Text>
-          <Text style={styles.navLabel}>CHAT</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>PERFIL</Text>
-        </TouchableOpacity>
-      </View>
+      <Navbar/>
     </View>
   );
 }

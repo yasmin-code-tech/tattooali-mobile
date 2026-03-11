@@ -9,6 +9,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import Navbar from '../components/Navbar';
 
 export default function AgendaScreen() {
   const navigation = useNavigation();
@@ -180,28 +181,7 @@ export default function AgendaScreen() {
         )}
       </ScrollView>
 
-      <View style={styles.bottomNav}>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Busca')}>
-          <Text style={styles.navIcon}>🏠</Text>
-          <Text style={styles.navLabel}>HOME</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Busca')}>
-          <Text style={styles.navIcon}>🔍</Text>
-          <Text style={styles.navLabel}>BUSCAR</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.navItem, styles.navItemActive]}>
-          <Text style={styles.navIcon}>📅</Text>
-          <Text style={[styles.navLabel, styles.navLabelActive]}>AGENDA</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('Chat')}>
-          <Text style={styles.navIcon}>💬</Text>
-          <Text style={styles.navLabel}>CHAT</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={() => navigation.navigate('PerfilCliente')}>
-          <Text style={styles.navIcon}>👤</Text>
-          <Text style={styles.navLabel}>PERFIL</Text>
-        </TouchableOpacity>
-      </View>
+      <Navbar />
 
       <Modal
         visible={modalVisible}
