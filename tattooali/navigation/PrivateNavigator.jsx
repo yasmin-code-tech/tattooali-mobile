@@ -4,8 +4,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BuscaScreen          from '../screens/BuscaScreen';
 import AgendaScreen         from '../screens/AgendaScreen';
 import ChatScreen           from '../screens/ChatScreen';
-import PerfilClienteScreen  from '../screens/PerfilClienteScreen';
-import PerfilTatuadorScreen from '../screens/PerfilTatuadorScreen';
+import PerfilScreen from '../screens/PerfilScreen';
+import EditarPerfilScreen from '../screens/EditarPerfilScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -22,8 +22,9 @@ export default function PrivateNavigator() {
       <Stack.Screen name="Busca"          component={BuscaScreen}          />
       <Stack.Screen name="Agenda"         component={AgendaScreen}         />
       <Stack.Screen name="Chat"           component={ChatScreen}           />
-      <Stack.Screen name="PerfilCliente"  component={PerfilClienteScreen}  />
-      <Stack.Screen name="PerfilTatuador" component={PerfilTatuadorScreen} />
+      <Stack.Screen name="Perfil"         component={PerfilScreen}         />
+      <Stack.Screen name="EditarPerfil"   component={EditarPerfilScreen}   />
+      
     </Stack.Navigator>
   );
 }

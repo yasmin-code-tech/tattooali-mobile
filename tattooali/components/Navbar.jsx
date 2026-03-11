@@ -7,7 +7,7 @@ const NAV_ITEMS = [
   { label: 'BUSCAR', icon: '🔍', route: 'Busca'        },
   { label: 'AGENDA', icon: '📅', route: 'Agenda'       },
   { label: 'CHAT',   icon: '💬', route: 'Chat'         },
-  { label: 'PERFIL', icon: '👤', route: 'PerfilCliente' },
+  { label: 'PERFIL', icon: '👤', route: 'Perfil' },
 ];
 
 export default function AppLayout({ children }) {
