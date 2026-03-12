@@ -9,11 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
+  Alert,Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, radius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
+
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -63,7 +64,11 @@ export default function LoginScreen() {
         {/* Logo */}
         <View style={styles.logoArea}>
           <View style={styles.logoMark}>
-            <Text style={styles.logoSvgPlaceholder}>👤</Text>
+            < Image 
+            source = {require('../../assets/logo.png')}
+            style={styles.logoImage}
+            
+            />
           </View>
           <Text style={styles.logoTitle}>TATTOOALI</Text>
           <Text style={styles.logoSub}>Seu próximo traço começa aqui</Text>
@@ -166,18 +171,17 @@ const styles = StyleSheet.create({
   // Logo
   logoArea:          { alignItems: 'center', marginBottom: 48 },
   logoMark: {
-    width: 72,
-    height: 72,
+    width: 128,
+    height: 128,
     borderRadius: 22,
-    backgroundColor: colors.red,
+    borderColor: colors.red,
+    borderWidth: 2,
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
-    shadowColor: colors.red,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 10,
+    
   },
   logoSvgPlaceholder: { fontSize: 30 },
   logoTitle: {
@@ -188,7 +192,10 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   logoSub: { color: colors.text2, fontSize: 13, marginTop: 6 },
-
+  logoImage :{
+    width: 128,
+    height:128,
+  },
   // Erro
   errorBox: {
     backgroundColor: 'rgba(229,48,48,0.1)',

@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 
 const SETTINGS_ITEMS = [
@@ -15,11 +16,22 @@ const SETTINGS_ITEMS = [
   { emoji: '⭐', label: 'Minhas Avaliações',        bg: 'rgba(245,158,11,0.1)', route: null,     danger: false },
   { emoji: '🔔', label: 'Notificações',            bg: 'rgba(139,92,246,0.1)', route: null,     danger: false },
   { emoji: '🔒', label: 'Privacidade e Segurança', bg: 'rgba(100,116,139,0.1)',route: null,     danger: false },
-  { emoji: '🚪', label: 'Sair',                    bg: 'rgba(239,68,68,0.1)',  route: 'Login',  danger: true  },
+  { emoji: '🚪', label: 'Sair',                    bg: 'rgba(239,68,68,0.1)',  route: null,  danger: true, isLogout:true  },
 ];
 
 export default function PerfilScreen({ route }) {
   const navigation = useNavigation();
+
+  const { logout } = useAuth();
+  
+  function handleItemPress(item) {
+  if (item.isLogout) {
+    logout();
+    return;  // ← importante: interrompe aqui se for logout
+  }
+
+  if (item.route) navigation.navigate(item.route); // ← só chega aqui se NÃO for logout
+}
   const profile = route?.params?.profile ?? {
     name:        'João Pedro Lima',
     email:       'joao@email.com',
@@ -67,7 +79,7 @@ export default function PerfilScreen({ route }) {
             <TouchableOpacity
               key={i}
               style={[styles.settingsItem, i === SETTINGS_ITEMS.length - 1 && styles.settingsItemLast]}
-              onPress={() => item.route && navigation.navigate(item.route)}
+              onPress={() => handleItemPress(item)}
               activeOpacity={0.75}
             >
               <View style={[styles.settingsIcon, { backgroundColor: item.bg }]}>
