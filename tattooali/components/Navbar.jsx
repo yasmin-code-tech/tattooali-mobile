@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 
 const NAV_ITEMS = [
-  { label: 'BUSCAR', icon: '🔍', route: 'Busca'        },
-  { label: 'AGENDA', icon: '📅', route: 'Agenda'       },
-  { label: 'CHAT',   icon: '💬', route: 'Chat'         },
-  { label: 'PERFIL', icon: '👤', route: 'Perfil' },
+  { label: 'BUSCAR', icon: 'search',          iconActive: 'search',           route: 'Busca'        },
+  { label: 'AGENDA', icon: 'calendar-outline', iconActive: 'calendar',         route: 'Agenda'       },
+  { label: 'CHAT',   icon: 'chatbubble-outline',iconActive: 'chatbubble',      route: 'Chat'         },
+  { label: 'PERFIL', icon: 'person-outline',   iconActive: 'person',           route: 'Perfil' },
 ];
 
 export default function AppLayout({ children }) {
@@ -16,7 +17,7 @@ export default function AppLayout({ children }) {
   const { logout } = useAuth();
 
   function handleLogout() {
-     logout();
+    logout();
   }
 
   return (
@@ -33,7 +34,11 @@ export default function AppLayout({ children }) {
               onPress={() => navigation.navigate(item.route)}
               activeOpacity={0.75}
             >
-              <Text style={styles.navIcon}>{item.icon}</Text>
+              <Ionicons
+                name={active ? item.iconActive : item.icon}
+                size={22}
+                color={active ? '#e53030' : '#555'}
+              />
               <Text style={[styles.navLabel, active && styles.navLabelActive]}>
                 {item.label}
               </Text>
@@ -47,7 +52,7 @@ export default function AppLayout({ children }) {
           onPress={handleLogout}
           activeOpacity={0.75}
         >
-          <Text style={styles.navIcon}>🚪</Text>
+          <Ionicons name="log-out-outline" size={22} color="#f87171" />
           <Text style={[styles.navLabel, styles.navLabelLogout]}>SAIR</Text>
         </TouchableOpacity>
       </View>
@@ -86,9 +91,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   navItemActive: {},
-  navIcon: {
-    fontSize: 22,
-  },
   navLabel: {
     fontSize: 9,
     fontWeight: '500',
