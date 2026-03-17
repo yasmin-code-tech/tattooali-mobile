@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,13 @@ import {
   StyleSheet,
   Modal,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Navbar from '../components/Navbar';
+
+const API_BASE_URL = 'http://localhost:3000/api';
 
 export default function AgendaScreen() {
   const navigation = useNavigation();
@@ -17,6 +21,96 @@ export default function AgendaScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [currentRating, setCurrentRating] = useState(0);
   const [comentario, setComentario] = useState('');
+  const [agendadas, setAgendadas] = useState([]);
+  const [concluidas, setConcluidas] = useState([]);
+  const [canceladas, setCanceladas] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function getAuthHeaders() {
+    try {
+      const token = await AsyncStorage.getItem('@tattooali:token');
+      if (!token) return {};
+      return {
+        Authorization: `Bearer ${token}`,
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  async function fetchSessions(endpoint, setter) {
+    setLoading(true);
+    setError(null);
+    try {
+      const headersAuth = await getAuthHeaders();
+      const resp = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headersAuth,
+        },
+      });
+
+      if (!resp.ok) {
+        const msg = `Erro ao carregar sessões (${resp.status})`;
+        setError(msg);
+        setter([]);
+        return;
+      }
+
+      const data = await resp.json();
+      setter(Array.isArray(data) ? data : []);
+    } catch (e) {
+      setError('Não foi possível carregar as sessões.');
+      setter([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleLoadByTab(tab) {
+    if (tab === 'agendadas') {
+      await fetchSessions('/sessions/pendentes', setAgendadas);
+    } else if (tab === 'concluidas') {
+      await fetchSessions('/sessions/realizadas', setConcluidas);
+    } else if (tab === 'canceladas') {
+      await fetchSessions('/sessions/canceladas', setCanceladas);
+    }
+  }
+
+  async function handleCancelSession(sessionId) {
+    if (!sessionId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const headersAuth = await getAuthHeaders();
+      const resp = await fetch(`${API_BASE_URL}/sessions/${sessionId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headersAuth,
+        },
+        body: JSON.stringify({ cancelado: true }),
+      });
+
+      if (!resp.ok) {
+        setError('Não foi possível cancelar a sessão.');
+        return;
+      }
+
+      await handleLoadByTab('agendadas');
+      await handleLoadByTab('canceladas');
+    } catch {
+      setError('Não foi possível cancelar a sessão.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    handleLoadByTab(activeTab);
+  }, [activeTab]);
 
   function handleSetRating(n) {
     setCurrentRating(n);
@@ -63,120 +157,141 @@ export default function AgendaScreen() {
           </TouchableOpacity>
         </View>
 
+        {loading && (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="small" color="#e53030" />
+          </View>
+        )}
+
+        {error && (
+          <View style={styles.errorBoxInline}>
+            <Text style={styles.errorTextInline}>{error}</Text>
+          </View>
+        )}
+
         {activeTab === 'agendadas' && (
           <View style={styles.sessionList}>
-            <View style={styles.sessionCard}>
-              <View style={styles.sessionCardHeader}>
-                <View style={styles.sessionAvatar}>
-                  <Text style={styles.sessionAvatarEmoji}>🎨</Text>
+            {agendadas.length === 0 && !loading ? (
+              <Text style={styles.emptyText}>Nenhuma sessão agendada.</Text>
+            ) : (
+              agendadas.map(sessao => (
+                <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
+                  <View style={styles.sessionCardHeader}>
+                    <View style={styles.sessionAvatar}>
+                      <Text style={styles.sessionAvatarEmoji}>🎨</Text>
+                    </View>
+                    <View style={styles.sessionInfo}>
+                      <Text style={styles.sessionName}>{sessao.cliente?.nome ?? 'Cliente'}</Text>
+                      <Text style={styles.sessionDate}>
+                        {sessao.data_atendimento
+                          ? new Date(sessao.data_atendimento).toLocaleString()
+                          : ''}
+                      </Text>
+                    </View>
+                    <View style={[styles.sessionStatus, styles.statusAgendada]}>
+                      <Text style={[styles.sessionStatusText, { color: '#60a5fa' }]}>Agendada</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.sessionDesc}>{sessao.descricao ?? ''}</Text>
+                  <View style={styles.sessionFooter}>
+                    <TouchableOpacity
+                      style={styles.btnOutlineSm}
+                      onPress={() => navigation.navigate('Chat')}
+                    >
+                      <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.btnOutlineSm, styles.btnDanger]}
+                      onPress={() => handleCancelSession(sessao.sessao_id || sessao.id)}
+                    >
+                      <Text style={[styles.btnOutlineSmText, { color: '#f87171' }]}>✕ Cancelar</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.sessionInfo}>
-                  <Text style={styles.sessionName}>Rafael Ink</Text>
-                  <Text style={styles.sessionDate}>17 Mar, 2024 · 11:00</Text>
-                </View>
-                <View style={[styles.sessionStatus, styles.statusAgendada]}>
-                  <Text style={[styles.sessionStatusText, { color: '#60a5fa' }]}>Agendada</Text>
-                </View>
-              </View>
-              <Text style={styles.sessionDesc}>Realismo no braço esquerdo</Text>
-              <View style={styles.sessionFooter}>
-                <TouchableOpacity
-                  style={styles.btnOutlineSm}
-                  onPress={() => navigation.navigate('Chat')}
-                >
-                  <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={[styles.btnOutlineSm, styles.btnDanger]}>
-                  <Text style={[styles.btnOutlineSmText, { color: '#f87171' }]}>✕ Cancelar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+              ))
+            )}
           </View>
         )}
 
         {activeTab === 'concluidas' && (
           <View style={styles.sessionList}>
-            <View style={styles.sessionCard}>
-              <View style={styles.sessionCardHeader}>
-                <View style={styles.sessionAvatar}>
-                  <Text style={styles.sessionAvatarEmoji}>🖋️</Text>
+            {concluidas.length === 0 && !loading ? (
+              <Text style={styles.emptyText}>Nenhuma sessão concluída.</Text>
+            ) : (
+              concluidas.map(sessao => (
+                <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
+                  <View style={styles.sessionCardHeader}>
+                    <View style={styles.sessionAvatar}>
+                      <Text style={styles.sessionAvatarEmoji}>🖋️</Text>
+                    </View>
+                    <View style={styles.sessionInfo}>
+                      <Text style={styles.sessionName}>{sessao.cliente?.nome ?? 'Cliente'}</Text>
+                      <Text style={styles.sessionDate}>
+                        {sessao.data_atendimento
+                          ? new Date(sessao.data_atendimento).toLocaleString()
+                          : ''}
+                      </Text>
+                    </View>
+                    <View style={[styles.sessionStatus, styles.statusConcluida]}>
+                      <Text style={[styles.sessionStatusText, { color: '#4ade80' }]}>Concluída</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.sessionDesc}>{sessao.descricao ?? ''}</Text>
+                  <View style={styles.sessionFooter}>
+                    <TouchableOpacity
+                      style={styles.btnOutlineSm}
+                      onPress={() => navigation.navigate('Chat')}
+                    >
+                      <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.btnPrimarySm}
+                      onPress={() => setModalVisible(true)}
+                    >
+                      <Text style={styles.btnPrimarySmText}>⭐ Avaliar</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.sessionInfo}>
-                  <Text style={styles.sessionName}>Marina Bones</Text>
-                  <Text style={styles.sessionDate}>5 Mar, 2024 · 14:00</Text>
-                </View>
-                <View style={[styles.sessionStatus, styles.statusConcluida]}>
-                  <Text style={[styles.sessionStatusText, { color: '#4ade80' }]}>Concluída</Text>
-                </View>
-              </View>
-              <Text style={styles.sessionDesc}>Old school na panturrilha</Text>
-              <View style={styles.sessionFooter}>
-                <TouchableOpacity
-                  style={styles.btnOutlineSm}
-                  onPress={() => navigation.navigate('Chat')}
-                >
-                  <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.btnPrimarySm} onPress={() => setModalVisible(true)}>
-                  <Text style={styles.btnPrimarySmText}>⭐ Avaliar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            <View style={styles.sessionCard}>
-              <View style={styles.sessionCardHeader}>
-                <View style={styles.sessionAvatar}>
-                  <Text style={styles.sessionAvatarEmoji}>✏️</Text>
-                </View>
-                <View style={styles.sessionInfo}>
-                  <Text style={styles.sessionName}>Tiago Dark Art</Text>
-                  <Text style={styles.sessionDate}>20 Fev, 2024 · 10:00</Text>
-                </View>
-                <View style={[styles.sessionStatus, styles.statusConcluida]}>
-                  <Text style={[styles.sessionStatusText, { color: '#4ade80' }]}>Concluída</Text>
-                </View>
-              </View>
-              <Text style={styles.sessionDesc}>Geométrico nas costas</Text>
-              <View style={styles.sessionFooter}>
-                <TouchableOpacity
-                  style={styles.btnOutlineSm}
-                  onPress={() => navigation.navigate('Chat')}
-                >
-                  <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
-                </TouchableOpacity>
-                <View style={styles.avaliadaBadge}>
-                  <Text style={styles.avaliadaBadgeText}>★★★★★ Avaliada</Text>
-                </View>
-              </View>
-            </View>
+              ))
+            )}
           </View>
         )}
 
         {activeTab === 'canceladas' && (
           <View style={styles.sessionList}>
-            <View style={styles.sessionCard}>
-              <View style={styles.sessionCardHeader}>
-                <View style={styles.sessionAvatar}>
-                  <Text style={styles.sessionAvatarEmoji}>🎨</Text>
+            {canceladas.length === 0 && !loading ? (
+              <Text style={styles.emptyText}>Nenhuma sessão cancelada.</Text>
+            ) : (
+              canceladas.map(sessao => (
+                <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
+                  <View style={styles.sessionCardHeader}>
+                    <View style={styles.sessionAvatar}>
+                      <Text style={styles.sessionAvatarEmoji}>🎨</Text>
+                    </View>
+                    <View style={styles.sessionInfo}>
+                      <Text style={styles.sessionName}>{sessao.cliente?.nome ?? 'Cliente'}</Text>
+                      <Text style={styles.sessionDate}>
+                        {sessao.data_atendimento
+                          ? new Date(sessao.data_atendimento).toLocaleString()
+                          : ''}
+                      </Text>
+                    </View>
+                    <View style={[styles.sessionStatus, styles.statusCancelada]}>
+                      <Text style={[styles.sessionStatusText, { color: '#f87171' }]}>Cancelada</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.sessionDesc}>{sessao.descricao ?? ''}</Text>
+                  <View style={styles.sessionFooter}>
+                    <TouchableOpacity
+                      style={styles.btnOutlineSm}
+                      onPress={() => navigation.navigate('PerfilTatuador')}
+                    >
+                      <Text style={styles.btnOutlineSmText}>Reagendar</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-                <View style={styles.sessionInfo}>
-                  <Text style={styles.sessionName}>Rafael Ink</Text>
-                  <Text style={styles.sessionDate}>10 Jan, 2024 · 09:00</Text>
-                </View>
-                <View style={[styles.sessionStatus, styles.statusCancelada]}>
-                  <Text style={[styles.sessionStatusText, { color: '#f87171' }]}>Cancelada</Text>
-                </View>
-              </View>
-              <Text style={styles.sessionDesc}>Blackwork no antebraço</Text>
-              <View style={styles.sessionFooter}>
-                <TouchableOpacity
-                  style={styles.btnOutlineSm}
-                  onPress={() => navigation.navigate('PerfilTatuador')}
-                >
-                  <Text style={styles.btnOutlineSmText}>Reagendar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+              ))
+            )}
           </View>
         )}
       </ScrollView>
