@@ -7,7 +7,8 @@ import { useAuth } from '../context/AuthContext';
 const NAV_ITEMS = [
   { label: 'BUSCAR', icon: 'search',          iconActive: 'search',           route: 'Busca'        },
   { label: 'AGENDA', icon: 'calendar-outline', iconActive: 'calendar',         route: 'Agenda'       },
-  { label: 'CHAT',   icon: 'chatbubble-outline',iconActive: 'chatbubble',      route: 'Chat'         },
+  // 👇 A ALTERAÇÃO FOI FEITA AQUI: route mudou para 'Contatos'
+  { label: 'CHAT',   icon: 'chatbubble-outline',iconActive: 'chatbubble',      route: 'Contatos'     },
   { label: 'PERFIL', icon: 'person-outline',   iconActive: 'person',           route: 'Perfil' },
 ];
 
