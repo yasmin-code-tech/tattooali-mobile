@@ -11,8 +11,10 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 
 import Navbar from '../components/Navbar';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -129,7 +131,7 @@ function CommentCard({ comment }) {
   );
 }
 
-function ArtistModal({ artist, visible, onClose }) {
+function ArtistModal({ artist, visible, onClose, onReport }) {
   if (!artist) return null;
   return (
     <Modal
@@ -146,14 +148,25 @@ function ArtistModal({ artist, visible, onClose }) {
 
             {/* Header */}
             <View style={styles.modalHeader}>
-              <View style={styles.modalAvatar}>
-                <Text style={styles.modalAvatarEmoji}>{artist.avatar}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}>
+                <View style={styles.modalAvatar}>
+                  <Text style={styles.modalAvatarEmoji}>{artist.avatar}</Text>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalName}>{artist.name}</Text>
+                  <Text style={styles.modalStyles}>{artist.styles.join(' · ').toUpperCase()}</Text>
+                  {renderStars(artist.avg_rating, 15)}
+                </View>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.modalName}>{artist.name}</Text>
-                <Text style={styles.modalStyles}>{artist.styles.join(' · ').toUpperCase()}</Text>
-                {renderStars(artist.avg_rating, 15)}
-              </View>
+
+              <TouchableOpacity
+                style={styles.modalReportBtn}
+                onPress={onReport}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="flag-outline" size={22} color={colors.text} />
+              </TouchableOpacity>
             </View>
 
             {/* Address */}
@@ -210,6 +223,7 @@ function SkeletonCard() {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function BuscaScreen() {
+  const navigation = useNavigation();
   const [query, setQuery]               = useState('');
   const [activeFilter, setActiveFilter] = useState('Todos');
   const [loading, setLoading]           = useState(false);
@@ -317,6 +331,12 @@ export default function BuscaScreen() {
         artist={selectedArtist}
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
+        onReport={() => {
+          setModalVisible(false);
+          navigation.navigate('Report', {
+            denunciado: selectedArtist?.name
+          });
+        }}
       />
 
       <Navbar />
@@ -558,10 +578,23 @@ const styles = StyleSheet.create({
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    justifyContent: 'space-between',
     paddingBottom: 16,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
+  },
+  modalReportBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    padding: 0,
+  },
+  modalReportBtnText: {
+    fontSize: 16,
   },
   modalAvatar: {
     width: 72,
