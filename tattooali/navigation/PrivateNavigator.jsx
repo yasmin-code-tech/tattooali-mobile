@@ -7,6 +7,7 @@ import ChatScreen from '../screens/ChatScreen';
 import PerfilScreen from '../screens/PerfilScreen';
 import EditarPerfilScreen from '../screens/EditarPerfilScreen';
 import Contactsscreen from '../screens/Contactsscreen';
+import ReportScreen from '../screens/ReportScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -27,6 +28,7 @@ export default function PrivateNavigator() {
       <Stack.Screen name="Perfil"         component={PerfilScreen}         />
       <Stack.Screen name="EditarPerfil"   component={EditarPerfilScreen}   />
       <Stack.Screen name="Contatos"       component={Contactsscreen}       />
+      <Stack.Screen name="Report"         component={ReportScreen}         />
       
     </Stack.Navigator>
   );
