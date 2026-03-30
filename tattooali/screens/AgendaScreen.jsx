@@ -17,7 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Navbar from '../components/Navbar';
 
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = 'http://10.50.83.61:3000/api';
 
 export default function AgendaScreen() {
   const navigation = useNavigation();

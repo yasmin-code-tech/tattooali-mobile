@@ -8,6 +8,8 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, radius } from '../../theme';
@@ -17,10 +19,38 @@ export default function EsqueciSenhaScreen() {
   const [email, setEmail] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
   const [enviado, setEnviado] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  function handleEnviar() {
-    if (!email.trim()) return;
-    setEnviado(true);
+  async function handleEnviar() {
+    if (!email.trim()) {
+      Alert.alert('Erro', 'Por favor, informe seu e-mail.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const API_BASE_URL = 'http://10.50.83.61:3000/api';
+      const response = await fetch(`${API_BASE_URL}/user/recuperar-senha`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Erro ao enviar e-mail de recuperação.');
+      }
+
+      setEnviado(true);
+    } catch (error) {
+      Alert.alert('Erro', error.message || 'Erro ao processar solicitação. Tente novamente.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -62,8 +92,17 @@ export default function EsqueciSenhaScreen() {
                 onBlur={() => setEmailFocused(false)}
               />
             </View>
-            <TouchableOpacity style={styles.btnPrimary} activeOpacity={0.85} onPress={handleEnviar}>
-              <Text style={styles.btnPrimaryText}>Enviar link de redefinição</Text>
+            <TouchableOpacity 
+              style={[styles.btnPrimary, loading && styles.btnDisabled]} 
+              activeOpacity={0.85} 
+              onPress={handleEnviar}
+              disabled={loading}
+            >
+              {loading ? (
+                <ActivityIndicator color={colors.text} />
+              ) : (
+                <Text style={styles.btnPrimaryText}>Enviar link de redefinição</Text>
+              )}
             </TouchableOpacity>
           </>
         ) : (
@@ -144,6 +183,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
+  btnDisabled: { opacity: 0.6 },
   successBox: {
     backgroundColor: colors.surface,
     borderWidth: 1,
