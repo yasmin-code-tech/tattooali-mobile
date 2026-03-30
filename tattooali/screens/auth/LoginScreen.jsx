@@ -12,6 +12,7 @@ import {
   Alert,Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, radius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
 
@@ -22,6 +23,7 @@ export default function LoginScreen() {
 
   const [email, setEmail]               = useState('');
   const [senha, setSenha]               = useState('');
+  const [mostrarSenha, setMostrarSenha] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [senhaFocused, setSenhaFocused] = useState(false);
   const [loading, setLoading]           = useState(false);
@@ -106,23 +108,32 @@ export default function LoginScreen() {
         {/* Senha */}
         <View style={styles.inputGroup}>
           <Text style={styles.label}>SENHA</Text>
-          <TextInput
-            style={[
-              styles.input,
-              senhaFocused && styles.inputFocused,
-              erro && !senha && styles.inputError,
-            ]}
-            placeholder="••••••••"
-            placeholderTextColor={colors.text3}
-            secureTextEntry
-            value={senha}
-            onChangeText={v => { setSenha(v); setErro(''); }}
-            onFocus={() => setSenhaFocused(true)}
-            onBlur={() => setSenhaFocused(false)}
-            onSubmitEditing={handleLogin}
-            returnKeyType="done"
-            editable={!loading}
-          />
+          <View style={styles.passwordRow}>
+            <TextInput
+              style={[
+                styles.input,
+                senhaFocused && styles.inputFocused,
+                erro && !senha && styles.inputError,
+                styles.passwordInput,
+              ]}
+              placeholder="••••••••"
+              placeholderTextColor={colors.text3}
+              secureTextEntry={!mostrarSenha}
+              value={senha}
+              onChangeText={v => { setSenha(v); setErro(''); }}
+              onFocus={() => setSenhaFocused(true)}
+              onBlur={() => setSenhaFocused(false)}
+              onSubmitEditing={handleLogin}
+              returnKeyType="done"
+              editable={!loading}
+            />
+            <TouchableOpacity
+              style={styles.showPasswordBtn}
+              onPress={() => setMostrarSenha(prev => !prev)}
+            >
+              <Ionicons name={mostrarSenha ? "eye-off" : "eye"} size={20} color={colors.text2} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Botão Entrar */}
@@ -140,19 +151,25 @@ export default function LoginScreen() {
 
         {/* Links */}
         <View style={styles.authLinks}>
-          <TouchableOpacity
+          <View style={styles.LinkContainer}>
+            <Text style={styles.Linktexto}>Não tem uma conta ainda?</Text>
+            <TouchableOpacity
             onPress={() => navigation.navigate('Cadastro')}
             disabled={loading}
           >
-            <Text style={styles.authLink}>Criar conta</Text>
+          <Text style={styles.Linkrota}>Criar conta</Text>
           </TouchableOpacity>
-          <Text style={styles.authDivider}>•</Text>
-          <TouchableOpacity
+          
+          </View>
+
+          <View style={styles.LinkContainer}>
+            <TouchableOpacity
             onPress={() => navigation.navigate('EsqueciSenha')}
             disabled={loading}
           >
-            <Text style={styles.authLink}>Esqueci minha senha</Text>
+            <Text style={styles.Linkrota}>Esqueci minha senha</Text>
           </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -234,6 +251,22 @@ const styles = StyleSheet.create({
   },
   inputFocused: { borderColor: colors.red },
   inputError:   { borderColor: '#f87171' },
+  passwordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  passwordInput: {
+    flex: 1,
+    marginRight: 10,
+  },
+  showPasswordBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: colors.surface2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
 
   // Botão
   btnPrimary: {
@@ -268,4 +301,20 @@ const styles = StyleSheet.create({
   },
   authLink:    { color: colors.text2, fontSize: 13 },
   authDivider: { color: colors.text3, fontSize: 11 },
+
+  LinkContainer:{
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  Linktexto: {
+    color: colors.text2,
+    fontSize: 13,
+    fontWeight: '300'
+  },
+  Linkrota: {
+    color: colors.text3,
+    fontSize: 13,
+    fontWeight: '500'
+  },
 });

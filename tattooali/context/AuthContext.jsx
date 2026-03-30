@@ -3,11 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AuthContext = createContext(null);
 
-const MOCK_USERS = [
-  { id: '1', name: 'Yasmin Oliveira', email: 'yasmin.jobs33@gmail.com', password: '123456' },
-];
-
 const STORAGE_KEY = '@tattoali:user';
+const TOKEN_KEY = '@tattoali:token';
 
 export function AuthProvider({ children }) {
   const [user, setUser]       = useState(null);
@@ -28,29 +25,64 @@ export function AuthProvider({ children }) {
   }, []);
 
   async function login(email, password) {
-    const found = MOCK_USERS.find(
-      u => u.email === email && u.password === password
-    );
+    // Modo mockado para desenvolvimento
+    if (email === 'yasmin.jobs33@gmail.com' && password === '123456') {
+      const userData = {
+        email,
+        token: 'mock-token-123456',
+      };
 
-    if (!found) {
-      throw new Error('E-mail ou senha incorretos.');
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+        await AsyncStorage.setItem(TOKEN_KEY, userData.token);
+      } catch {
+        // ignora erros de escrita
+      }
+
+      setUser(userData);
+      return userData;
     }
 
-    const { password: _, ...safeUser } = found;
+    const API_BASE_URL = 'http://10.50.83.61:3000/api';
 
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(safeUser));
-    } catch {
-      // ignora erros de escrita
-    }
+      const response = await fetch(`${API_BASE_URL}/user/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, senha: password }),
+      });
 
-    setUser(safeUser);
-    return safeUser;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || data?.message || 'E-mail ou senha incorretos.');
+      }
+
+      const userData = {
+        email,
+        token: data.token,
+      };
+
+      try {
+        await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(userData));
+        await AsyncStorage.setItem(TOKEN_KEY, data.token);
+      } catch {
+        // ignora erros de escrita
+      }
+
+      setUser(userData);
+      return userData;
+    } catch (error) {
+      throw new Error(error.message || 'Erro ao fazer login.');
+    }
   }
 
   async function logout() {
     try {
       await AsyncStorage.removeItem(STORAGE_KEY);
+      await AsyncStorage.removeItem(TOKEN_KEY);
     } catch {
       // ignora erros de remoção
     }
