@@ -4,10 +4,14 @@ import {
   Text,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
   StyleSheet,
   Modal,
   TextInput,
   ActivityIndicator,
+  Alert,
+  Platform,
+  ToastAndroid,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -25,7 +29,17 @@ export default function AgendaScreen() {
   const [concluidas, setConcluidas] = useState([]);
   const [canceladas, setCanceladas] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [lastLoadedAt, setLastLoadedAt] = useState(null);
+
+  function showNotice(message) {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+      return;
+    }
+    Alert.alert('Aviso', message);
+  }
 
   async function getAuthHeaders() {
     try {
@@ -53,16 +67,22 @@ export default function AgendaScreen() {
       });
 
       if (!resp.ok) {
-        const msg = `Erro ao carregar sessões (${resp.status})`;
+        const msg = resp.status === 401
+          ? 'Sessão expirada. Faça login novamente.'
+          : `Não foi possível carregar agenda (${resp.status}).`;
         setError(msg);
+        showNotice(msg);
         setter([]);
         return;
       }
 
       const data = await resp.json();
       setter(Array.isArray(data) ? data : []);
+      setLastLoadedAt(new Date());
     } catch (e) {
-      setError('Não foi possível carregar as sessões.');
+      const msg = 'Não foi possível carregar agenda. Verifique sua conexão e tente novamente.';
+      setError(msg);
+      showNotice(msg);
       setter([]);
     } finally {
       setLoading(false);
@@ -77,6 +97,12 @@ export default function AgendaScreen() {
     } else if (tab === 'canceladas') {
       await fetchSessions('/sessions/canceladas', setCanceladas);
     }
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true);
+    await handleLoadByTab(activeTab);
+    setRefreshing(false);
   }
 
   async function handleCancelSession(sessionId) {
@@ -95,17 +121,34 @@ export default function AgendaScreen() {
       });
 
       if (!resp.ok) {
-        setError('Não foi possível cancelar a sessão.');
+        const msg = 'Não foi possível cancelar a sessão.';
+        setError(msg);
+        showNotice(msg);
         return;
       }
 
+      showNotice('Sessão cancelada com sucesso.');
       await handleLoadByTab('agendadas');
       await handleLoadByTab('canceladas');
     } catch {
-      setError('Não foi possível cancelar a sessão.');
+      const msg = 'Não foi possível cancelar a sessão.';
+      setError(msg);
+      showNotice(msg);
     } finally {
       setLoading(false);
     }
+  }
+
+  function getEmptyMessage() {
+    if (activeTab === 'agendadas') return 'Nenhum agendamento encontrado para este período.';
+    if (activeTab === 'concluidas') return 'Nenhuma sessão concluída encontrada para este período.';
+    return 'Nenhuma sessão cancelada encontrada para este período.';
+  }
+
+  function getCurrentList() {
+    if (activeTab === 'agendadas') return agendadas;
+    if (activeTab === 'concluidas') return concluidas;
+    return canceladas;
   }
 
   useEffect(() => {
@@ -125,11 +168,19 @@ export default function AgendaScreen() {
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.topBar}>
-          <Text style={styles.topBarTitle}>AGENDA</Text>
-        </View>
-
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor="#e53030"
+            colors={['#e53030']}
+            progressBackgroundColor="#141414"
+          />
+        }
+      >
         <View style={styles.agendaTabs}>
           <TouchableOpacity
             style={[styles.agendaTab, activeTab === 'agendadas' && styles.agendaTabActive]}
@@ -166,13 +217,29 @@ export default function AgendaScreen() {
         {error && (
           <View style={styles.errorBoxInline}>
             <Text style={styles.errorTextInline}>{error}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={() => handleLoadByTab(activeTab)}>
+              <Text style={styles.retryBtnText}>Tentar novamente</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {!loading && !error && lastLoadedAt && (
+          <Text style={styles.lastUpdateText}>
+            Última atualização: {lastLoadedAt.toLocaleTimeString()}
+          </Text>
+        )}
+
+        {!loading && !error && getCurrentList().length === 0 && (
+          <View style={styles.emptyStateBox}>
+            <Text style={styles.emptyStateTitle}>Agenda vazia</Text>
+            <Text style={styles.emptyStateText}>{getEmptyMessage()}</Text>
           </View>
         )}
 
         {activeTab === 'agendadas' && (
           <View style={styles.sessionList}>
             {agendadas.length === 0 && !loading ? (
-              <Text style={styles.emptyText}>Nenhuma sessão agendada.</Text>
+              <Text style={styles.emptyText} />
             ) : (
               agendadas.map(sessao => (
                 <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
@@ -216,7 +283,7 @@ export default function AgendaScreen() {
         {activeTab === 'concluidas' && (
           <View style={styles.sessionList}>
             {concluidas.length === 0 && !loading ? (
-              <Text style={styles.emptyText}>Nenhuma sessão concluída.</Text>
+              <Text style={styles.emptyText} />
             ) : (
               concluidas.map(sessao => (
                 <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
@@ -260,7 +327,7 @@ export default function AgendaScreen() {
         {activeTab === 'canceladas' && (
           <View style={styles.sessionList}>
             {canceladas.length === 0 && !loading ? (
-              <Text style={styles.emptyText}>Nenhuma sessão cancelada.</Text>
+              <Text style={styles.emptyText} />
             ) : (
               canceladas.map(sessao => (
                 <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
@@ -358,20 +425,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
-  topBar: {
-    backgroundColor: '#0a0a0a',
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 14,
-  },
-  topBarTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: '#f0f0f0',
-  },
   agendaTabs: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -400,6 +453,58 @@ const styles = StyleSheet.create({
   sessionList: {
     padding: 16,
     gap: 12,
+  },
+  lastUpdateText: {
+    color: '#777',
+    fontSize: 11,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  emptyStateBox: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    backgroundColor: '#141414',
+    borderRadius: 12,
+    padding: 14,
+    gap: 6,
+  },
+  emptyStateTitle: {
+    color: '#f0f0f0',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  emptyStateText: {
+    color: '#9a9a9a',
+    fontSize: 12,
+  },
+  retryBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#f87171',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  retryBtnText: {
+    color: '#f87171',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  errorBoxInline: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(248,113,113,0.5)',
+    backgroundColor: 'rgba(127,29,29,0.22)',
+    borderRadius: 12,
+    padding: 12,
+  },
+  errorTextInline: {
+    color: '#fca5a5',
+    fontSize: 12,
   },
   sessionCard: {
     backgroundColor: '#141414',
