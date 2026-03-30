@@ -50,10 +50,6 @@ export default function PerfilScreen({ route }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.topBar}>
-          <Text style={styles.topBarTitle}>MEU PERFIL</Text>
-        </View>
-
         <View style={styles.clientHero}>
           <View style={styles.clientAvatar}>
             <Text style={styles.clientAvatarEmoji}>{profile.avatarEmoji}</Text>
@@ -117,20 +113,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 100,
-  },
-  topBar: {
-    backgroundColor: colors.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 14,
-  },
-  topBarTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: colors.text,
   },
   clientHero: {
     paddingHorizontal: 24,

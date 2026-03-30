@@ -133,14 +133,6 @@ export default function EditarPerfilScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* TOP BAR */}
-        <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={handleCancel}>
-            <Text style={styles.backBtnText}>←</Text>
-          </TouchableOpacity>
-          <Text style={styles.topBarTitle}>EDITAR PERFIL</Text>
-        </View>
-
         {/* AVATAR */}
         <View style={styles.avatarSection}>
           <TouchableOpacity
@@ -359,35 +351,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 40,
-  },
-  topBar: {
-    backgroundColor: colors.bg,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  backBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: colors.surface2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  backBtnText: {
-    color: colors.text,
-    fontSize: 16,
-  },
-  topBarTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 1,
-    color: colors.text,
   },
   avatarSection: {
     paddingVertical: 28,
