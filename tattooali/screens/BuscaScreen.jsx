@@ -16,7 +16,15 @@ import { useNavigation } from '@react-navigation/native';
 import Navbar from '../components/Navbar';
 import { Ionicons } from '@expo/vector-icons';
 
+//Modais
+import { ArtistModal } from '../components/ArtistModal';
+import SearchFilterModal from '../components/SearchFilterModal';
+import ArtistCard from '../components/ArtistCard';
+
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -70,142 +78,9 @@ const MOCK_ARTISTS = [
 
 const STYLES_FILTER = ['Todos', 'Realismo', 'Old School', 'Minimalista', 'Blackwork', 'Aquarela', 'Geométrico'];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function renderStars(rating, size = 13) {
-  const full  = Math.floor(rating);
-  const empty = 5 - full;
-  return (
-    <Text style={[styles.stars, { fontSize: size }]}>
-      {'★'.repeat(full)}
-      <Text style={styles.starsEmpty}>{'☆'.repeat(empty)}</Text>
-    </Text>
-  );
-}
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function ArtistCard({ artist, onPress }) {
-  return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
-      <View style={styles.cardImg}>
-        <Text style={styles.cardImgEmoji}>{artist.avatar}</Text>
-      </View>
-      <View style={styles.cardBody}>
-        <Text style={styles.cardName}>{artist.name}</Text>
-        <Text style={styles.cardStyles}>{artist.styles.join(' · ').toUpperCase()}</Text>
-        {renderStars(artist.avg_rating)}
-        <Text style={styles.cardAddress} numberOfLines={2}>📍 {artist.address}</Text>
-        <View style={styles.cardFooter}>
-          <TouchableOpacity style={styles.btnPrimary} onPress={onPress} activeOpacity={0.85}>
-            <Text style={styles.btnPrimaryText}>Ver perfil</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </TouchableOpacity>
-  );
-}
 
-function GalleryItem({ emoji }) {
-  return (
-    <View style={styles.galleryItem}>
-      <Text style={styles.galleryEmoji}>{emoji}</Text>
-    </View>
-  );
-}
-
-function CommentCard({ comment }) {
-  return (
-    <View style={styles.commentCard}>
-      <View style={styles.commentHeader}>
-        <View style={styles.commentAvatar}>
-          <Text style={styles.commentAvatarText}>{comment.author[0]}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.commentAuthor}>{comment.author}</Text>
-          {renderStars(comment.rating, 11)}
-        </View>
-      </View>
-      <Text style={styles.commentText}>{comment.text}</Text>
-    </View>
-  );
-}
-
-function ArtistModal({ artist, visible, onClose, onReport }) {
-  if (!artist) return null;
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHandle} />
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}>
-                <View style={styles.modalAvatar}>
-                  <Text style={styles.modalAvatarEmoji}>{artist.avatar}</Text>
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.modalName}>{artist.name}</Text>
-                  <Text style={styles.modalStyles}>{artist.styles.join(' · ').toUpperCase()}</Text>
-                  {renderStars(artist.avg_rating, 15)}
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.modalReportBtn}
-                onPress={onReport}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="flag-outline" size={22} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Address */}
-            <View style={styles.modalInfoRow}>
-              <Text style={styles.modalInfoIcon}>📍</Text>
-              <Text style={styles.modalInfoText}>{artist.address}</Text>
-            </View>
-
-            {/* Bio */}
-            <Text style={styles.modalBio}>{artist.bio}</Text>
-
-            {/* Gallery */}
-            <Text style={styles.modalSectionTitle}>GALERIA</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.galleryRow}
-            >
-              {artist.gallery.map((emoji, i) => (
-                <GalleryItem key={i} emoji={emoji} />
-              ))}
-            </ScrollView>
-
-            {/* Comments */}
-            <Text style={styles.modalSectionTitle}>AVALIAÇÕES</Text>
-            {artist.comments.map(c => (
-              <CommentCard key={c.id} comment={c} />
-            ))}
-
-            <TouchableOpacity style={styles.modalBtnOutline} onPress={onClose} activeOpacity={0.85}>
-              <Text style={styles.modalBtnOutlineText}>Fechar</Text>
-            </TouchableOpacity>
-
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 function SkeletonCard() {
   return (
@@ -223,12 +98,14 @@ function SkeletonCard() {
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function BuscaScreen() {
-  const navigation = useNavigation();
   const [query, setQuery]               = useState('');
   const [activeFilter, setActiveFilter] = useState('Todos');
   const [loading, setLoading]           = useState(false);
   const [selectedArtist, setSelectedArtist] = useState(null);
   const [modalVisible, setModalVisible]     = useState(false);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+  const [appliedBairro, setAppliedBairro] = useState(null);
+  const [appliedStars, setAppliedStars] = useState(null);
   const debounceRef = useRef(null);
 
   const filteredArtists = MOCK_ARTISTS.filter(a => {
@@ -238,7 +115,9 @@ export default function BuscaScreen() {
       || a.styles.some(s => s.toLowerCase().includes(query.toLowerCase()));
     const matchFilter = activeFilter === 'Todos'
       || a.styles.some(s => s.toLowerCase() === activeFilter.toLowerCase());
-    return matchQuery && matchFilter;
+    const matchBairro = !appliedBairro || a.address.toLowerCase().includes(appliedBairro.toLowerCase());
+    const matchStars = !appliedStars || a.avg_rating >= appliedStars;
+    return matchQuery && matchFilter && matchBairro && matchStars;
   });
 
   function handleQueryChange(text) {
@@ -251,6 +130,16 @@ export default function BuscaScreen() {
   function handleCardPress(artist) {
     setSelectedArtist(artist);
     setModalVisible(true);
+  }
+
+  function handleApplyFilters(filters) {
+    setAppliedBairro(filters.bairro);
+    setAppliedStars(filters.estrelas);
+  }
+
+  function handleResetFilters() {
+    setAppliedBairro(null);
+    setAppliedStars(null);
   }
 
   return (
@@ -266,9 +155,9 @@ export default function BuscaScreen() {
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>{'ENCONTRE\nSEU ARTISTA'}</Text>
               <Text style={styles.heroSub}>Busque tatuadores por nome, bairro ou estilo</Text>
-
+             
               <View style={styles.searchBar}>
-                <Text style={styles.searchIcon}>🔍</Text>
+                <Ionicons name="search" size={16} color="#fff" />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Buscar tatuador, estilo, bairro..."
@@ -278,6 +167,13 @@ export default function BuscaScreen() {
                   autoCorrect={false}
                   autoCapitalize="none"
                 />
+                <TouchableOpacity
+                  style={styles.filterButton}
+                  onPress={() => setFilterModalVisible(true)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="filter" size={16} color="#fff" />
+                </TouchableOpacity>
               </View>
 
               <ScrollView
@@ -338,6 +234,12 @@ export default function BuscaScreen() {
           });
         }}
       />
+
+      <SearchFilterModal
+        visible={filterModalVisible}
+        onClose={() => setFilterModalVisible(false)}
+      >
+      </SearchFilterModal>
 
       <Navbar />
     </View>
@@ -411,6 +313,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     backgroundColor: 'transparent',
   },
+  filterButton: {
+    padding: 4,
+  },
 
   // ── Filters
   filtersRow: {
@@ -450,54 +355,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 
-  // ── Artist card
-  card: {
-    flexDirection: 'row',
-    backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    overflow: 'hidden',
-    marginHorizontal: 20,
-    marginBottom: 12,
-  },
-  cardImg: {
-    width: 100,
-    backgroundColor: colors.surface3,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 120,
-  },
-  cardImgEmoji: {
-    fontSize: 36,
-  },
-  cardBody: {
-    flex: 1,
-    padding: 14,
-    gap: 3,
-  },
-  cardName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  cardStyles: {
-    fontSize: 10,
-    color: colors.red,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  cardAddress: {
-    fontSize: 11,
-    color: colors.text3,
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  cardFooter: {
-    marginTop: 10,
-    flexDirection: 'row',
-  },
-
   // ── Stars
   stars: {
     color: colors.gold,
@@ -505,24 +362,6 @@ const styles = StyleSheet.create({
   },
   starsEmpty: {
     color: colors.border,
-  },
-
-  // ── Primary button
-  btnPrimary: {
-    backgroundColor: colors.red,
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    shadowColor: colors.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  btnPrimaryText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
   },
 
   // ── Skeleton
