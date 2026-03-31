@@ -28,6 +28,7 @@ export function AuthProvider({ children }) {
     // Modo mockado para desenvolvimento
     if (email === 'yasmin.jobs33@gmail.com' && password === '123456') {
       const userData = {
+        id: 1, // Mock id
         email,
         token: 'mock-token-123456',
       };
@@ -61,6 +62,7 @@ export function AuthProvider({ children }) {
       }
 
       const userData = {
+        id: data.id || 1, // Adicionar id
         email,
         token: data.token,
       };

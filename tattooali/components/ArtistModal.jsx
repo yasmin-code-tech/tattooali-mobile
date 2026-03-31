@@ -2,6 +2,7 @@
  import React from 'react';
 import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme';
 import CommentCard from './CommentCard';
 
@@ -198,6 +199,7 @@ const styles = StyleSheet.create({
 });
 
 export function ArtistModal({ artist, visible, onClose, onReport }) {
+  const navigation = useNavigation();
   if (!artist) return null;
   return (
     <Modal
@@ -256,11 +258,24 @@ export function ArtistModal({ artist, visible, onClose, onReport }) {
               ))}
             </ScrollView>
 
-            {/* Comments */}
-            <Text style={styles.modalSectionTitle}>AVALIAÇÕES</Text>
-            {artist.comments.map(c => (
-              <CommentCard key={c.id} comment={c} />
-            ))}
+            <View style={{marginTop: 18, marginBottom: 8}}>
+              <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between', flexWrap: 'wrap', gap: 10}}>
+                <Text style={styles.modalSectionTitle}>AVALIAÇÕES</Text>
+                <TouchableOpacity 
+                  style={[styles.modalBtnOutline, {paddingVertical: 8, paddingHorizontal: 16, minHeight: 36, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.red, backgroundColor: 'transparent'}]}
+                  onPress={() => navigation.navigate('Review', { artist })} 
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="add-outline" size={20} color={colors.red} style={{marginRight: 4}} />
+                  <Text style={[styles.modalBtnOutlineText, {color: colors.red, fontWeight: '700'}]}>Adicionar avaliação</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{marginTop: 10, gap: 10}}>
+                {artist.comments.map(c => (
+                  <CommentCard key={c.id} comment={c} />
+                ))}
+              </View>
+            </View>
 
             <TouchableOpacity style={styles.modalBtnOutline} onPress={onClose} activeOpacity={0.85}>
               <Text style={styles.modalBtnOutlineText}>Fechar</Text>
