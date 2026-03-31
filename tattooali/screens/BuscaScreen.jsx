@@ -16,6 +16,9 @@ import { useNavigation } from '@react-navigation/native';
 import Navbar from '../components/Navbar';
 import { Ionicons } from '@expo/vector-icons';
 
+//Modais
+import { ArtistModal } from '../components/ArtistModal';
+
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
@@ -106,106 +109,7 @@ function ArtistCard({ artist, onPress }) {
   );
 }
 
-function GalleryItem({ emoji }) {
-  return (
-    <View style={styles.galleryItem}>
-      <Text style={styles.galleryEmoji}>{emoji}</Text>
-    </View>
-  );
-}
 
-function CommentCard({ comment }) {
-  return (
-    <View style={styles.commentCard}>
-      <View style={styles.commentHeader}>
-        <View style={styles.commentAvatar}>
-          <Text style={styles.commentAvatarText}>{comment.author[0]}</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.commentAuthor}>{comment.author}</Text>
-          {renderStars(comment.rating, 11)}
-        </View>
-      </View>
-      <Text style={styles.commentText}>{comment.text}</Text>
-    </View>
-  );
-}
-
-function ArtistModal({ artist, visible, onClose, onReport }) {
-  if (!artist) return null;
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHandle} />
-
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
-
-            {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}>
-                <View style={styles.modalAvatar}>
-                  <Text style={styles.modalAvatarEmoji}>{artist.avatar}</Text>
-                </View>
-
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.modalName}>{artist.name}</Text>
-                  <Text style={styles.modalStyles}>{artist.styles.join(' · ').toUpperCase()}</Text>
-                  {renderStars(artist.avg_rating, 15)}
-                </View>
-              </View>
-
-              <TouchableOpacity
-                style={styles.modalReportBtn}
-                onPress={onReport}
-                activeOpacity={0.7}
-              >
-                <Ionicons name="flag-outline" size={22} color={colors.text} />
-              </TouchableOpacity>
-            </View>
-
-            {/* Address */}
-            <View style={styles.modalInfoRow}>
-              <Text style={styles.modalInfoIcon}>📍</Text>
-              <Text style={styles.modalInfoText}>{artist.address}</Text>
-            </View>
-
-            {/* Bio */}
-            <Text style={styles.modalBio}>{artist.bio}</Text>
-
-            {/* Gallery */}
-            <Text style={styles.modalSectionTitle}>GALERIA</Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.galleryRow}
-            >
-              {artist.gallery.map((emoji, i) => (
-                <GalleryItem key={i} emoji={emoji} />
-              ))}
-            </ScrollView>
-
-            {/* Comments */}
-            <Text style={styles.modalSectionTitle}>AVALIAÇÕES</Text>
-            {artist.comments.map(c => (
-              <CommentCard key={c.id} comment={c} />
-            ))}
-
-            <TouchableOpacity style={styles.modalBtnOutline} onPress={onClose} activeOpacity={0.85}>
-              <Text style={styles.modalBtnOutlineText}>Fechar</Text>
-            </TouchableOpacity>
-
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
-  );
-}
 
 function SkeletonCard() {
   return (
@@ -268,7 +172,7 @@ export default function BuscaScreen() {
               <Text style={styles.heroSub}>Busque tatuadores por nome, bairro ou estilo</Text>
 
               <View style={styles.searchBar}>
-                <Text style={styles.searchIcon}>🔍</Text>
+                <Ionicons name="search" size={16} color="#555" />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Buscar tatuador, estilo, bairro..."
