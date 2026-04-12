@@ -9,10 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { colors, radius } from '../../theme';
+import { api } from '../../lib/api';
 
 export default function EsqueciSenhaScreen() {
   const navigation = useNavigation();
@@ -20,34 +20,17 @@ export default function EsqueciSenhaScreen() {
   const [emailFocused, setEmailFocused] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
 
   async function handleEnviar() {
-    if (!email.trim()) {
-      Alert.alert('Erro', 'Por favor, informe seu e-mail.');
-      return;
-    }
-
+    if (!email.trim()) return;
+    setErro('');
     setLoading(true);
-
     try {
-      const API_BASE_URL = 'http://10.50.83.61:3000/api';
-      const response = await fetch(`${API_BASE_URL}/user/recuperar-senha`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || 'Erro ao enviar e-mail de recuperação.');
-      }
-
+      await api.post('/api/user/recuperar-senha', { email: email.trim().toLowerCase() });
       setEnviado(true);
-    } catch (error) {
-      Alert.alert('Erro', error.message || 'Erro ao processar solicitação. Tente novamente.');
+    } catch (e) {
+      setErro(e?.message || 'Não foi possível enviar o e-mail. Tente novamente.');
     } finally {
       setLoading(false);
     }
@@ -77,6 +60,11 @@ export default function EsqueciSenhaScreen() {
 
         {!enviado ? (
           <>
+            {erro !== '' && (
+              <View style={styles.errorBox}>
+                <Text style={styles.errorText}>{erro}</Text>
+              </View>
+            )}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>EMAIL</Text>
               <TextInput
@@ -87,19 +75,20 @@ export default function EsqueciSenhaScreen() {
                 autoCapitalize="none"
                 autoCorrect={false}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(v) => { setEmail(v); setErro(''); }}
                 onFocus={() => setEmailFocused(true)}
                 onBlur={() => setEmailFocused(false)}
+                editable={!loading}
               />
             </View>
-            <TouchableOpacity 
-              style={[styles.btnPrimary, loading && styles.btnDisabled]} 
-              activeOpacity={0.85} 
+            <TouchableOpacity
+              style={[styles.btnPrimary, loading && styles.btnPrimaryDisabled]}
+              activeOpacity={0.85}
               onPress={handleEnviar}
               disabled={loading}
             >
               {loading ? (
-                <ActivityIndicator color={colors.text} />
+                <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.btnPrimaryText}>Enviar link de redefinição</Text>
               )}
@@ -170,6 +159,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   inputFocused: { borderColor: colors.red },
+  errorBox: {
+    backgroundColor: 'rgba(229,48,48,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(229,48,48,0.3)',
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  errorText: { color: '#f87171', fontSize: 13, textAlign: 'center' },
+  btnPrimaryDisabled: { opacity: 0.65 },
   btnPrimary: {
     backgroundColor: colors.red,
     borderRadius: radius.md,
@@ -183,7 +183,6 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
-  btnDisabled: { opacity: 0.6 },
   successBox: {
     backgroundColor: colors.surface,
     borderWidth: 1,
