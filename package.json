@@ -1,0 +1,12 @@
+{
+  "name": "tattooali-mobile",
+  "private": true,
+  "description": "Raiz do repositório. O app Expo (dependências, Metro, Expo) fica SOMENTE em tattooali/.",
+  "scripts": {
+    "start": "npm run start --prefix tattooali",
+    "android": "npm run android --prefix tattooali",
+    "ios": "npm run ios --prefix tattooali",
+    "web": "npm run web --prefix tattooali",
+    "setup": "npm install --prefix tattooali"
+  }
+}
