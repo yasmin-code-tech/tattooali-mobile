@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import Navbar from '../components/Navbar';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
@@ -43,6 +44,20 @@ function tatuadorNomeParaReview(sessao) {
   const u = sessao?.User;
   const full = u ? `${u.nome || ''} ${u.sobrenome || ''}`.trim() : '';
   return full || 'o tatuador';
+}
+
+/** ID do app (Users.user_id) para abrir o chat no Supabase — tatuador quando o cliente vê a agenda. */
+function getTatuadorAppUserId(sessao) {
+  const raw = sessao?.User?.user_id ?? sessao?.usuario_id;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+/** ID do cliente no app, quando o tatuador vê a ficha vinculada ao CPF. */
+function getClienteAppUserId(sessao) {
+  const raw = sessao?.cliente?.user_id;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export default function AgendaScreen() {
@@ -75,6 +90,36 @@ export default function AgendaScreen() {
       return;
     }
     Alert.alert('Aviso', message);
+  }
+
+  /**
+   * Abre Chat com o contato certo: cliente fala com o tatuador da sessão; tatuador fala com o cliente (se tiver user_id na ficha).
+   */
+  function openChatForSession(sessao, layoutIsCliente) {
+    let peerId;
+    let peerName;
+    if (layoutIsCliente) {
+      peerId = getTatuadorAppUserId(sessao);
+      const u = sessao?.User;
+      peerName = (u ? `${u.nome || ''} ${u.sobrenome || ''}`.trim() : '') || 'Tatuador';
+      if (peerId == null) {
+        showNotice('Não foi possível identificar o tatuador desta sessão para o chat.');
+        return;
+      }
+    } else {
+      peerId = getClienteAppUserId(sessao);
+      peerName = String(sessao?.cliente?.nome || '').trim() || 'Cliente';
+      if (peerId == null) {
+        showNotice(
+          'Este cliente ainda não tem conta no app vinculada. O chat fica disponível quando o CPF dele estiver associado a um usuário.',
+        );
+        return;
+      }
+    }
+    navigation.navigate('Chat', {
+      peerAppUserId: peerId,
+      peerName,
+    });
   }
 
   /** @returns {Promise<number[]|null>} lista em sucesso; null se falhou a requisição */
@@ -255,31 +300,77 @@ export default function AgendaScreen() {
           />
         }
       >
-        <View style={styles.agendaTabs}>
-          <TouchableOpacity
-            style={[styles.agendaTab, activeTab === 'agendadas' && styles.agendaTabActive]}
-            onPress={() => setActiveTab('agendadas')}
-          >
-            <Text style={[styles.agendaTabText, activeTab === 'agendadas' && styles.agendaTabTextActive]}>
-              Agendadas
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.agendaTab, activeTab === 'concluidas' && styles.agendaTabActive]}
-            onPress={() => setActiveTab('concluidas')}
-          >
-            <Text style={[styles.agendaTabText, activeTab === 'concluidas' && styles.agendaTabTextActive]}>
-              Concluídas
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.agendaTab, activeTab === 'canceladas' && styles.agendaTabActive]}
-            onPress={() => setActiveTab('canceladas')}
-          >
-            <Text style={[styles.agendaTabText, activeTab === 'canceladas' && styles.agendaTabTextActive]}>
-              Canceladas
-            </Text>
-          </TouchableOpacity>
+        <View style={styles.agendaTabsOuter}>
+          <Text style={styles.agendaTabsHint}>Suas sessões por status</Text>
+          <View style={styles.agendaTabs} accessibilityRole="tablist">
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === 'agendadas' }}
+              accessibilityLabel="Sessões agendadas"
+              style={({ pressed }) => [
+                styles.agendaTab,
+                activeTab === 'agendadas' && styles.agendaTabActive,
+                pressed && styles.agendaTabPressed,
+              ]}
+              onPress={() => setActiveTab('agendadas')}
+            >
+              <Text style={styles.agendaTabEmoji}>📅</Text>
+              <Text
+                style={[styles.agendaTabText, activeTab === 'agendadas' && styles.agendaTabTextActive]}
+                numberOfLines={1}
+              >
+                Agendadas
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === 'concluidas' }}
+              accessibilityLabel="Sessões concluídas"
+              style={({ pressed }) => [
+                styles.agendaTab,
+                activeTab === 'concluidas' && styles.agendaTabActive,
+                pressed && styles.agendaTabPressed,
+              ]}
+              onPress={() => setActiveTab('concluidas')}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={18}
+                color="#4ade80"
+                style={styles.agendaTabIcon}
+              />
+              <Text
+                style={[styles.agendaTabText, activeTab === 'concluidas' && styles.agendaTabTextActive]}
+                numberOfLines={1}
+              >
+                Concluídas
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="tab"
+              accessibilityState={{ selected: activeTab === 'canceladas' }}
+              accessibilityLabel="Sessões canceladas"
+              style={({ pressed }) => [
+                styles.agendaTab,
+                activeTab === 'canceladas' && styles.agendaTabActive,
+                pressed && styles.agendaTabPressed,
+              ]}
+              onPress={() => setActiveTab('canceladas')}
+            >
+              <Ionicons
+                name="close-circle"
+                size={18}
+                color="#e53030"
+                style={styles.agendaTabIcon}
+              />
+              <Text
+                style={[styles.agendaTabText, activeTab === 'canceladas' && styles.agendaTabTextActive]}
+                numberOfLines={1}
+              >
+                Canceladas
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         {loading && (
@@ -342,7 +433,7 @@ export default function AgendaScreen() {
                   <View style={styles.sessionFooter}>
                     <TouchableOpacity
                       style={styles.btnOutlineSm}
-                      onPress={() => navigation.navigate('Chat')}
+                      onPress={() => openChatForSession(sessao, useClienteCardLayoutForList('agendadas'))}
                     >
                       <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
                     </TouchableOpacity>
@@ -394,7 +485,7 @@ export default function AgendaScreen() {
                   <View style={styles.sessionFooter}>
                     <TouchableOpacity
                       style={styles.btnOutlineSm}
-                      onPress={() => navigation.navigate('Chat')}
+                      onPress={() => openChatForSession(sessao, useClienteCardLayoutForList('concluidas'))}
                     >
                       <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
                     </TouchableOpacity>
@@ -451,9 +542,9 @@ export default function AgendaScreen() {
                   <View style={styles.sessionFooter}>
                     <TouchableOpacity
                       style={styles.btnOutlineSm}
-                      onPress={() => navigation.navigate('PerfilTatuador')}
+                      onPress={() => openChatForSession(sessao, useClienteCardLayoutForList('canceladas'))}
                     >
-                      <Text style={styles.btnOutlineSmText}>Reagendar</Text>
+                      <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -552,30 +643,63 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: 100,
   },
+  agendaTabsOuter: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  agendaTabsHint: {
+    color: '#777',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+    marginLeft: 4,
+  },
   agendaTabs: {
     flexDirection: 'row',
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2a2a2a',
+    backgroundColor: '#141414',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2a2a2a',
+    padding: 4,
+    gap: 4,
   },
   agendaTab: {
     flex: 1,
-    paddingVertical: 10,
+    minHeight: 52,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
     alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
+    justifyContent: 'center',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   agendaTabActive: {
-    borderBottomColor: '#e53030',
+    backgroundColor: 'rgba(229,48,48,0.12)',
+    borderColor: 'rgba(229,48,48,0.45)',
+  },
+  agendaTabPressed: {
+    opacity: 0.85,
+  },
+  agendaTabEmoji: {
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  agendaTabIcon: {
+    marginBottom: 2,
   },
   agendaTabText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#555',
-    letterSpacing: 0.5,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#666',
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
   agendaTabTextActive: {
-    color: '#e53030',
+    color: '#f0f0f0',
   },
   sessionList: {
     padding: 16,
