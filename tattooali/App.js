@@ -3,14 +3,14 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
 
 import { AuthProvider } from './context/AuthContext';
-// 1. Importamos o seu novo contexto aqui
-import { ConversationsProvider } from './context/ConversationsContext'; 
+import { ConversationsProvider } from './context/ConversationsContext';
+import ChatProfileSync from './components/ChatProfileSync';
 import RootNavigator   from './navigation/RootNavigator';
 
 export default function App() {
   return (
     <AuthProvider>
-      {/* 2. Adicionamos o ConversationsProvider englobando a navegação */}
+      <ChatProfileSync />
       <ConversationsProvider>
         <NavigationContainer>
           <StatusBar style="light" />
