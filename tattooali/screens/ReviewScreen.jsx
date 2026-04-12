@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -10,11 +10,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_BASE_URL = 'http://10.50.83.61:3000/api';
+import { api } from '../lib/api';
 
 const renderStars = (rating, onPress, interactive = false) => {
   return (
@@ -34,10 +31,26 @@ const renderStars = (rating, onPress, interactive = false) => {
   );
 };
 
+function sessionKey(s) {
+  return s?.sessao_id ?? s?.id;
+}
+
+function matchesArtist(session, artistUserId) {
+  if (artistUserId == null || !Number.isFinite(artistUserId)) return false;
+  const uid =
+    session?.usuario_id ??
+    session?.usuario_Id ??
+    session?.User?.user_id ??
+    session?.user?.user_id;
+  return Number(uid) === artistUserId;
+}
+
 export default function ReviewScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { artist } = route.params;
+  const { artist } = route.params || {};
+  const artistUserId = Number(artist?.user_id);
+  const artistName = artist?.name || 'tatuador';
 
   const [sessions, setSessions] = useState([]);
   const [selectedSession, setSelectedSession] = useState(null);
@@ -46,87 +59,76 @@ export default function ReviewScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchPastSessions();
-  }, []);
-
-  const fetchPastSessions = async () => {
+  const fetchPastSessions = useCallback(async () => {
+    if (!Number.isFinite(artistUserId) || artistUserId < 1) {
+      setSessions([]);
+      setLoading(false);
+      return;
+    }
     try {
-      const token = await AsyncStorage.getItem('@tattoali:token');
-      if (!token) {
-        Alert.alert('Erro', 'Usuário não autenticado');
-        return;
-      }
-
-      // Assumindo que o id do cliente é o user.id, mas talvez precise ajustar
-      const user = JSON.parse(await AsyncStorage.getItem('@tattoali:user'));
-      const clientId = user.id; // Ajustar se necessário
-
-      const response = await fetch(`${API_BASE_URL}/sessions/${clientId}/history`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      const data = await response.json();
-      if (response.ok) {
-        // Filtrar sessões com o artista selecionado
-        const artistSessions = data.filter(session => session.usuario_id === artist.id);
-        setSessions(artistSessions);
-      } else {
-        Alert.alert('Erro', data.message || 'Erro ao buscar sessões');
-      }
+      const data = await api.get('/api/mobile/sessions/me/realizadas');
+      const list = Array.isArray(data) ? data : [];
+      const artistSessions = list.filter((s) => matchesArtist(s, artistUserId));
+      setSessions(artistSessions);
     } catch (error) {
-      Alert.alert('Erro', 'Erro de conexão');
+      const msg =
+        error?.message ||
+        error?.data?.message ||
+        error?.data?.error ||
+        'Erro ao buscar sessões';
+      Alert.alert('Erro', String(msg));
+      setSessions([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [artistUserId]);
+
+  useEffect(() => {
+    fetchPastSessions();
+  }, [fetchPastSessions]);
 
   const submitReview = async () => {
-    if (!selectedSession) {
+    const sid = sessionKey(selectedSession);
+    if (sid == null || !Number.isFinite(Number(sid))) {
       Alert.alert('Erro', 'Selecione uma sessão para avaliar');
       return;
     }
     if (rating === 0) {
-      Alert.alert('Erro', 'Selecione uma avaliação');
-      return;
-    }
-    if (!comment.trim()) {
-      Alert.alert('Erro', 'Digite um comentário');
+      Alert.alert('Erro', 'Selecione uma nota de 1 a 5');
       return;
     }
 
     setSubmitting(true);
     try {
-      const token = await AsyncStorage.getItem('@tattoali:token');
-      const response = await fetch(`${API_BASE_URL}/reviews`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          data_sessao: selectedSession.data_atendimento,
-          nota: rating,
-          comentario: comment,
-          usuario_id: selectedSession.usuario_id,
-        }),
+      await api.post('/api/reviews', {
+        sessao_id: Number(sid),
+        nota: rating,
+        comentario: comment.trim() || '',
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        Alert.alert('Sucesso', 'Avaliação enviada com sucesso!');
-        navigation.goBack();
-      } else {
-        Alert.alert('Erro', data.error || 'Erro ao enviar avaliação');
-      }
+      Alert.alert('Sucesso', 'Avaliação enviada com sucesso!');
+      navigation.goBack();
     } catch (error) {
-      Alert.alert('Erro', 'Erro de conexão');
+      const msg =
+        error?.data?.error ||
+        error?.data?.message ||
+        error?.message ||
+        'Erro ao enviar avaliação';
+      Alert.alert('Erro', String(msg));
     } finally {
       setSubmitting(false);
     }
   };
+
+  if (!Number.isFinite(artistUserId) || artistUserId < 1) {
+    return (
+      <View style={[styles.container, styles.centered]}>
+        <Text style={styles.noSessions}>Não foi possível identificar o tatuador. Feche e abra de novo pelo perfil na busca.</Text>
+        <TouchableOpacity style={styles.submitBtn} onPress={() => navigation.goBack()}>
+          <Text style={styles.submitBtnText}>Voltar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (loading) {
     return (
@@ -139,29 +141,37 @@ export default function ReviewScreen() {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Avaliar {artist.name}</Text>
+        <Text style={styles.title}>Avaliar {artistName}</Text>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Selecione a sessão</Text>
         {sessions.length === 0 ? (
-          <Text style={styles.noSessions}>Nenhuma sessão encontrada com este artista.</Text>
+          <Text style={styles.noSessions}>
+            Nenhuma sessão concluída encontrada com este tatuador. As avaliações usam o mesmo CPF da sua conta e sessões já marcadas como realizadas na agenda.
+          </Text>
         ) : (
-          sessions.map((session) => (
-            <TouchableOpacity
-              key={session.id}
-              style={[
-                styles.sessionItem,
-                selectedSession?.id === session.id && styles.sessionSelected,
-              ]}
-              onPress={() => setSelectedSession(session)}
-            >
-              <Text style={styles.sessionDate}>
-                {new Date(session.data_atendimento).toLocaleDateString('pt-BR')}
-              </Text>
-              <Text style={styles.sessionDesc}>{session.descricao}</Text>
-            </TouchableOpacity>
-          ))
+          sessions.map((session) => {
+            const key = sessionKey(session);
+            const selectedKey = sessionKey(selectedSession);
+            return (
+              <TouchableOpacity
+                key={key}
+                style={[
+                  styles.sessionItem,
+                  selectedKey === key && styles.sessionSelected,
+                ]}
+                onPress={() => setSelectedSession(session)}
+              >
+                <Text style={styles.sessionDate}>
+                  {session.data_atendimento
+                    ? new Date(session.data_atendimento).toLocaleDateString('pt-BR')
+                    : '—'}
+                </Text>
+                <Text style={styles.sessionDesc}>{session.descricao || 'Sessão'}</Text>
+              </TouchableOpacity>
+            );
+          })
         )}
       </View>
 
@@ -176,7 +186,7 @@ export default function ReviewScreen() {
 
           <TextInput
             style={styles.commentInput}
-            placeholder="Digite seu comentário..."
+            placeholder="Comentário (opcional, até 500 caracteres)"
             value={comment}
             onChangeText={setComment}
             multiline
@@ -192,7 +202,7 @@ export default function ReviewScreen() {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitBtnText}>Enviar Avaliação</Text>
+              <Text style={styles.submitBtnText}>Enviar avaliação</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -205,6 +215,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.surface,
+  },
+  centered: {
+    justifyContent: 'center',
+    padding: 24,
   },
   header: {
     padding: 24,
@@ -229,6 +243,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.text2,
     textAlign: 'center',
+    lineHeight: 22,
   },
   sessionItem: {
     padding: 16,
