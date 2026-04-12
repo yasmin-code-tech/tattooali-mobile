@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -12,6 +13,7 @@ import {
 import { C } from '../styles/token';
 import { formatListTime } from '../utils/timeUtils';
 import { useConversations } from '../context/ConversationsContext';
+import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/Navbar';
 
 
@@ -67,8 +69,14 @@ const Separator = () => <View style={styles.separator} />;
 
 // ─── CONTACTS SCREEN ──────────────────────────────────────────
 export default function ContactsScreen({ navigation }) {
-  // ✅ dados vêm do Context — sem route.params, sem funções viajando por navegação
-  const { conversations, markAsRead } = useConversations();
+  const { user } = useAuth();
+  const { conversations, refreshThreads, error, isSupabaseReady, loading } = useConversations();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshThreads();
+    }, [refreshThreads]),
+  );
 
   // Ordena por mais recente
   const sorted = [...conversations].sort(
@@ -79,11 +87,13 @@ export default function ContactsScreen({ navigation }) {
 
   const handlePress = useCallback(
     (contact) => {
-      // ✅ Só dados serializáveis no params (apenas o id)
-      markAsRead(contact.id);
-      navigation.navigate('Chat', { contactId: contact.id });
+      navigation.navigate('Chat', {
+        peerAppUserId: contact.peerAppUserId,
+        peerName: contact.name,
+        peerAvatar: null,
+      });
     },
-    [navigation, markAsRead],
+    [navigation],
   );
 
   return (
@@ -95,7 +105,9 @@ export default function ContactsScreen({ navigation }) {
       <View style={styles.header}>
         <View style={styles.headerLeft}>
           <Text style={styles.headerTitle}>Mensagens</Text>
-          <Text style={styles.headerSub}>Converse com seus tatuadores</Text>
+          <Text style={styles.headerSub}>
+            {user?.role === 'tatuador' ? 'Converse com seus clientes' : 'Converse com seus tatuadores'}
+          </Text>
         </View>
         {totalUnread > 0 && (
           <View style={styles.headerBadge}>
@@ -105,6 +117,12 @@ export default function ContactsScreen({ navigation }) {
       </View>
 
       <View style={styles.divider} />
+
+      {error ? (
+        <Text style={{ color: '#f87171', paddingHorizontal: 20, paddingVertical: 8, fontSize: 13 }}>
+          {error}
+        </Text>
+      ) : null}
 
       {/* ── LIST ───────────────────────────────────────────── */}
       <FlatList
@@ -119,7 +137,13 @@ export default function ContactsScreen({ navigation }) {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <Text style={styles.emptyEmoji}>💬</Text>
-            <Text style={styles.emptyText}>Nenhuma conversa ainda</Text>
+            <Text style={styles.emptyText}>
+              {!isSupabaseReady
+                ? 'Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY'
+                : loading
+                  ? 'Carregando…'
+                  : 'Nenhuma conversa ainda'}
+            </Text>
           </View>
         }
       />
