@@ -9,8 +9,76 @@ import {
   Modal,
   StyleSheet,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { useAuth } from '../context/AuthContext';
+import { api } from '../lib/api';
+
+function formatPhoneBR(digits) {
+  const d = String(digits || '').replace(/\D/g, '');
+  if (d.length === 11) {
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  }
+  if (d.length === 10) {
+    return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  }
+  return d;
+}
+
+function formatCpfDisplay(digits) {
+  const d = String(digits || '').replace(/\D/g, '').slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
+
+function formatDateBRFromIso(iso) {
+  if (!iso) return '—';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '—';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function draftFromUser(u) {
+  if (!u) return null;
+  const name =
+    [u.nome, u.sobrenome].filter(Boolean).join(' ').trim() || '';
+  return {
+    name,
+    cpf: formatCpfDisplay(u.cpf),
+    email: u.email || '',
+    phone: formatPhoneBR(u.telefone),
+    birth: formatDateBRFromIso(u.data_nascimento),
+    gender: u.genero || 'Prefiro não dizer',
+    cidade: u.cidade && u.cidade.trim() ? u.cidade : '—',
+    estado: u.uf && String(u.uf).trim() ? String(u.uf).trim().toUpperCase() : 'SP',
+    endereco: u.endereco && String(u.endereco).trim() ? String(u.endereco).trim() : '',
+    observacoes: u.bio && String(u.bio).trim() ? String(u.bio).trim() : '',
+    style: u.estilo_favorito && u.estilo_favorito.trim() ? u.estilo_favorito : 'Realismo',
+    avatarImg: null,
+    avatarEmoji: '👤',
+  };
+}
+
+/** — ou vazio → null; DD/MM/AAAA → YYYY-MM-DD; inválido → undefined */
+function parseBirthForApi(br) {
+  const s = String(br || '').trim();
+  if (!s || s === '—') return { ok: true, value: null };
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return { ok: false };
+  return { ok: true, value: `${m[3]}-${m[2]}-${m[1]}` };
+}
+
+/** Primeira palavra = nome; resto = sobrenome. Uma palavra só → sobrenome igual (API exige ≥3 em ambos). */
+function splitNomeSobrenome(fullName) {
+  const t = String(fullName || '').trim().replace(/\s+/g, ' ');
+  const parts = t.split(' ');
+  const nome = parts[0] || '';
+  const sobrenome = parts.length > 1 ? parts.slice(1).join(' ') : nome;
+  return { nome, sobrenome };
+}
 
 const GENDER_OPTIONS = ['Masculino', 'Feminino', 'Não-binário', 'Prefiro não dizer'];
 const ESTADO_OPTIONS = ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'CE', 'PE', 'GO', 'DF', 'AM'];
@@ -60,24 +128,58 @@ function SimpleSelect({ value, onChange, options }) {
 
 export default function EditarPerfilScreen() {
   const navigation = useNavigation();
-  const route      = useRoute();
+  const route = useRoute();
+  const { user, refreshUser } = useAuth();
 
-  const initialProfile = route?.params?.profile ?? {
-    name:        'João Pedro Lima',
-    email:       'joao@email.com',
-    phone:       '(11) 99999-0000',
-    birth:       '12/05/1995',
-    gender:      'Masculino',
-    cidade:      'São Paulo',
-    estado:      'SP',
-    style:       'Realismo',
-    avatarImg:   null,
-    avatarEmoji: '👤',
-  };
+  const routeProfile = route?.params?.profile;
+  const userRef = useRef(user);
+  userRef.current = user;
 
-  const [draft, setDraft]           = useState({ ...initialProfile });
+  const [draft, setDraft] = useState(() => {
+    const fromUser = draftFromUser(user);
+    if (fromUser) {
+      return {
+        ...fromUser,
+        ...(routeProfile && {
+          avatarEmoji: routeProfile.avatarEmoji,
+          avatarImg: routeProfile.avatarImg,
+        }),
+      };
+    }
+    return (
+      routeProfile ?? {
+        name: '',
+        cpf: '',
+        email: '',
+        phone: '',
+        birth: '—',
+        gender: 'Prefiro não dizer',
+        cidade: '—',
+        estado: 'SP',
+        endereco: '',
+        observacoes: '',
+        style: 'Realismo',
+        avatarImg: null,
+        avatarEmoji: '👤',
+      }
+    );
+  });
   const [photoSheet, setPhotoSheet] = useState(false);
-  const [toast, setToast]           = useState({ visible: false, msg: '', color: '#4ade80' });
+  const [toast, setToast] = useState({ visible: false, msg: '', color: '#4ade80' });
+  const [saving, setSaving] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      const fromUser = draftFromUser(userRef.current);
+      if (!fromUser) return;
+      const rp = route?.params?.profile;
+      setDraft({
+        ...fromUser,
+        avatarEmoji: rp?.avatarEmoji ?? fromUser.avatarEmoji,
+        avatarImg: rp?.avatarImg ?? fromUser.avatarImg,
+      });
+    }, [route?.params?.profile]),
+  );
 
   const scrollRef  = useRef(null);
   const fileRef    = useRef(null);
@@ -89,12 +191,77 @@ export default function EditarPerfilScreen() {
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, visible: false })), 3000);
   }, []);
 
-  function handleSave() {
-    if (!draft.name.trim() || !draft.email.trim()) {
-      showToast('Preencha nome e email ⚠️', '#f59e0b');
+  async function handleSave() {
+    if (!draft.name.trim()) {
+      showToast('Preencha o nome completo ⚠️', '#f59e0b');
       return;
     }
-    navigation.navigate('Perfil', { profile: { ...draft } });
+    const { nome, sobrenome } = splitNomeSobrenome(draft.name);
+    if (nome.length < 3 || sobrenome.length < 3) {
+      showToast(
+        'Use nome e sobrenome (cada parte com pelo menos 3 letras). Ex.: Maria Silva.',
+        '#f59e0b',
+      );
+      return;
+    }
+
+    const cpfDigits = String(draft.cpf || '').replace(/\D/g, '');
+    if (cpfDigits.length !== 11) {
+      showToast('Informe um CPF com 11 dígitos.', '#f59e0b');
+      return;
+    }
+
+    const birthParsed = parseBirthForApi(draft.birth);
+    if (!birthParsed.ok) {
+      showToast('Data inválida. Use DD/MM/AAAA ou deixe em —.', '#f59e0b');
+      return;
+    }
+
+    const body = { nome, sobrenome, cpf: cpfDigits };
+    body.data_nascimento = birthParsed.value;
+    body.genero =
+      draft.gender && draft.gender !== 'Prefiro não dizer' ? draft.gender : '';
+    body.cidade = draft.cidade && draft.cidade !== '—' ? draft.cidade.trim() : '';
+    body.uf =
+      draft.estado && String(draft.estado).trim().length === 2
+        ? String(draft.estado).trim().toUpperCase()
+        : '';
+    body.estilo_favorito =
+      draft.style && draft.style.trim() ? draft.style.trim() : '';
+
+    body.endereco =
+      draft.endereco != null ? String(draft.endereco).trim().slice(0, 255) : '';
+
+    const obs = String(draft.observacoes || '').trim();
+    const prevBio = String(user?.bio || '').trim();
+    if (obs) {
+      body.bio = obs.slice(0, 480);
+    } else if (prevBio) {
+      body.bio = '';
+    }
+
+    const telDigits = String(draft.phone || '').replace(/\D/g, '');
+    if (telDigits.length >= 9 && telDigits.length <= 11) {
+      body.telefone = telDigits;
+    } else if (telDigits.length === 0) {
+      body.telefone = '';
+    }
+
+    setSaving(true);
+    try {
+      await api.put('/api/perfil', body);
+      await refreshUser();
+      showToast('Perfil salvo no servidor ✓', '#4ade80');
+      navigation.navigate('Perfil');
+    } catch (e) {
+      const msg =
+        e?.data?.message ||
+        e?.message ||
+        'Não foi possível salvar. Tente de novo.';
+      showToast(String(msg), '#f87171');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function handleCancel() {
@@ -171,16 +338,37 @@ export default function EditarPerfilScreen() {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>EMAIL</Text>
+            <Text style={styles.inputLabel}>CPF</Text>
             <TextInput
               style={styles.input}
+              value={draft.cpf}
+              onChangeText={v => {
+                const d = String(v || '').replace(/\D/g, '').slice(0, 11);
+                setDraft(p => ({ ...p, cpf: formatCpfDisplay(d) }));
+              }}
+              keyboardType="number-pad"
+              placeholder="000.000.000-00"
+              placeholderTextColor={colors.text3}
+            />
+            <Text style={styles.inputHint}>
+              Precisa ser o mesmo da ficha na agenda do tatuador para suas sessões aparecerem corretamente.
+            </Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>EMAIL (LOGIN)</Text>
+            <TextInput
+              style={[styles.input, styles.inputReadonly]}
               value={draft.email}
-              onChangeText={v => setDraft(p => ({ ...p, email: v }))}
+              editable={false}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
               placeholderTextColor={colors.text3}
             />
+            <Text style={styles.inputHint}>
+              O e-mail de acesso é gerenciado pelo cadastro; altere só pelo fluxo de suporte se precisar.
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -237,6 +425,38 @@ export default function EditarPerfilScreen() {
             </View>
           </View>
 
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>ENDEREÇO (RUA E NÚMERO)</Text>
+            <TextInput
+              style={styles.input}
+              value={draft.endereco}
+              onChangeText={v => setDraft(p => ({ ...p, endereco: v }))}
+              placeholder="Ex.: Rua Leão Veloso, 667"
+              placeholderTextColor={colors.text3}
+              autoCapitalize="sentences"
+            />
+            <Text style={styles.inputHint}>
+              Aparece na ficha que o tatuador vê no painel web (junto com cidade/UF).
+            </Text>
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>OBSERVAÇÕES PARA O TATUADOR</Text>
+            <TextInput
+              style={[styles.input, styles.inputMultiline]}
+              value={draft.observacoes}
+              onChangeText={v => setDraft(p => ({ ...p, observacoes: v }))}
+              placeholder="Preferências, alergias, contexto da tatuagem…"
+              placeholderTextColor={colors.text3}
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <Text style={styles.inputHint}>
+              Mesmo campo “Observações” do modal de cliente no web.
+            </Text>
+          </View>
+
           <Text style={styles.sectionTitle}>Preferências de tatuagem</Text>
 
           <View style={styles.inputGroup}>
@@ -250,10 +470,24 @@ export default function EditarPerfilScreen() {
 
           {/* ACTIONS */}
           <View style={styles.btnActions}>
-            <TouchableOpacity style={[styles.btn, styles.btnPrimary]} onPress={handleSave} activeOpacity={0.85}>
-              <Text style={styles.btnPrimaryText}>✓ Salvar</Text>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnPrimary, saving && styles.btnDisabled]}
+              onPress={handleSave}
+              activeOpacity={0.85}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.btnPrimaryText}>✓ Salvar</Text>
+              )}
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btn, styles.btnOutline]} onPress={handleCancel} activeOpacity={0.85}>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnOutline]}
+              onPress={handleCancel}
+              activeOpacity={0.85}
+              disabled={saving}
+            >
               <Text style={styles.btnOutlineText}>✕ Cancelar</Text>
             </TouchableOpacity>
           </View>
@@ -450,6 +684,22 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     color: colors.text,
     fontSize: 14,
+  },
+  inputReadonly: {
+    opacity: 0.65,
+  },
+  inputMultiline: {
+    minHeight: 100,
+    paddingTop: 13,
+  },
+  inputHint: {
+    marginTop: 6,
+    fontSize: 11,
+    color: colors.text3,
+    lineHeight: 15,
+  },
+  btnDisabled: {
+    opacity: 0.7,
   },
   btn: {
     flex: 1,
