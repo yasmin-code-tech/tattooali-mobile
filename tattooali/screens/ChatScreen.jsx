@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,63 +8,144 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView
+  SafeAreaView,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 
-// Importando o seu contexto e o seu utilitário de tempo
-import { useConversations } from '../context/ConversationsContext';
-import { formatBubbleTime } from '../utils/timeUtils'; // Ajuste o caminho se necessário
+import { formatBubbleTime } from '../utils/timeUtils';
+import { getJwtSub } from '../lib/jwtSub';
+import {
+  fetchMessages,
+  getOrCreateConversationId,
+  resolvePeerAuthId,
+  sendChatMessage,
+  subscribeToMessages,
+  isSupabaseConfigured,
+} from '../services/chatService';
+
+const TOKEN_KEY = '@tattooali:token';
+
+function isRemoteUrl(s) {
+  return s && /^https?:\/\//i.test(String(s));
+}
 
 export default function ChatScreen() {
   const route = useRoute();
   const navigation = useNavigation();
-  
-  // Pegamos as funções do seu contexto
-  const { getContact, sendMessage } = useConversations();
+  const { peerAppUserId, peerName, peerAvatar } = route.params || {};
+  const peerId = Number.parseInt(String(peerAppUserId ?? ''), 10);
 
-  // Pegamos o ID do contato que foi passado na navegação
-  const { contactId } = route.params || {};
-  
-  // Buscamos todas as informações do tatuador (incluindo as mensagens)
-  const contact = getContact(contactId);
-
+  const [conversationId, setConversationId] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const flatListRef = useRef(null);
 
-  // Se por acaso abrir sem um contato válido, mostramos um erro amigável
-  if (!contact) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.texto}>Contato não encontrado.</Text>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
-          <Text style={{ color: '#e53030', fontSize: 16 }}>Voltar para Contatos</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  const mySubRef = useRef(null);
 
-  // Função para enviar a mensagem
-  const handleSend = () => {
-    if (inputText.trim().length > 0) {
-      sendMessage(contactId, inputText.trim());
-      setInputText(''); // Limpa a caixa de texto depois de enviar
+  const load = useCallback(async () => {
+    if (!Number.isFinite(peerId) || peerId < 1) {
+      setError('Contato inválido.');
+      setLoading(false);
+      return;
     }
-  };
+    if (!isSupabaseConfigured()) {
+      setError('Configure EXPO_PUBLIC_SUPABASE_URL e EXPO_PUBLIC_SUPABASE_ANON_KEY.');
+      setLoading(false);
+      return;
+    }
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      setError('Faça login novamente.');
+      setLoading(false);
+      return;
+    }
+    mySubRef.current = getJwtSub(token);
+    setLoading(true);
+    setError(null);
+    try {
+      const peerAuth = await resolvePeerAuthId(token, peerId);
+      if (!peerAuth) {
+        setError(
+          'Este tatuador ainda não sincronizou o chat. Peça para ele abrir o app gestor com Supabase configurado.',
+        );
+        setLoading(false);
+        return;
+      }
+      const conv = await getOrCreateConversationId(token, peerAuth);
+      if (!conv) throw new Error('Não foi possível abrir a conversa.');
+      setConversationId(conv);
+      const rows = await fetchMessages(token, conv);
+      setMessages(rows);
+    } catch (e) {
+      setError(e?.message || 'Falha ao carregar o chat.');
+    } finally {
+      setLoading(false);
+    }
+  }, [peerId]);
 
-  // Como desenhar cada balão de mensagem
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  useEffect(() => {
+    let unsub = () => {};
+    (async () => {
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (!token || !conversationId) return;
+      unsub = subscribeToMessages(token, conversationId, (row) => {
+        setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+        setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+      });
+    })();
+    return () => unsub();
+  }, [conversationId]);
+
+  const displayName = peerName || `Usuário #${peerId}`;
+  const showPhoto = isRemoteUrl(peerAvatar);
+
   const renderMessage = ({ item }) => {
-    const isUser = item.role === 'user';
+    const mine = mySubRef.current && item.sender_id === mySubRef.current;
     return (
-      <View style={[styles.messageWrapper, isUser ? styles.messageWrapperUser : styles.messageWrapperContact]}>
-        <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleContact]}>
-          <Text style={styles.messageText}>{item.text}</Text>
-          <Text style={styles.timeText}>{formatBubbleTime(item.timestamp)}</Text>
+      <View style={[styles.messageWrapper, mine ? styles.messageWrapperUser : styles.messageWrapperContact]}>
+        <View style={[styles.bubble, mine ? styles.bubbleUser : styles.bubbleContact]}>
+          <Text style={styles.messageText}>{item.body}</Text>
+          <Text style={styles.timeText}>{formatBubbleTime(item.created_at)}</Text>
         </View>
       </View>
     );
   };
+
+  const handleSend = async () => {
+    const text = inputText.trim();
+    if (!text || !conversationId) return;
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    setInputText('');
+    try {
+      const row = await sendChatMessage(token, conversationId, text);
+      setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    } catch {
+      setInputText(text);
+    }
+  };
+
+  if (!Number.isFinite(peerId) || peerId < 1) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.texto}>Contato inválido.</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 20 }}>
+          <Text style={{ color: '#e53030', fontSize: 16 }}>Voltar</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -72,40 +153,50 @@ export default function ChatScreen() {
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        {/* ── HEADER (Topo da tela) ── */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color="#f0f0f0" />
           </TouchableOpacity>
-          
+
           <View style={styles.headerInfo}>
             <View style={styles.avatarWrap}>
-              <Text style={styles.avatarEmoji}>{contact.avatar}</Text>
-            </View>
-            <View>
-              <Text style={styles.headerName}>{contact.name}</Text>
-              {contact.isOnline ? (
-                <Text style={styles.onlineStatus}>Online agora</Text>
+              {showPhoto ? (
+                <Image source={{ uri: peerAvatar }} style={styles.avatarImg} resizeMode="cover" />
               ) : (
-                <Text style={styles.offlineStatus}>Offline</Text>
+                <Text style={styles.avatarEmoji}>💬</Text>
               )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.headerName} numberOfLines={1}>
+                {displayName}
+              </Text>
+              <Text style={styles.offlineStatus}>Chat TattooAli</Text>
             </View>
           </View>
         </View>
 
-        {/* ── LISTA DE MENSAGENS ── */}
-        <FlatList
-          ref={flatListRef}
-          data={contact.messages}
-          keyExtractor={(item) => item.id}
-          renderItem={renderMessage}
-          contentContainerStyle={styles.listContent}
-          // Faz a lista rolar para baixo automaticamente quando abre ou chega nova mensagem
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        />
+        {error ? (
+          <View style={{ padding: 16 }}>
+            <Text style={{ color: '#f87171', fontSize: 14 }}>{error}</Text>
+          </View>
+        ) : null}
 
-        {/* ── CAIXA DE DIGITAR ── */}
+        {loading ? (
+          <View style={{ padding: 24, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#e53030" />
+          </View>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            keyExtractor={(item) => item.id}
+            renderItem={renderMessage}
+            contentContainerStyle={styles.listContent}
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          />
+        )}
+
         <View style={styles.inputContainer}>
           <TextInput
             style={styles.input}
@@ -114,11 +205,12 @@ export default function ChatScreen() {
             value={inputText}
             onChangeText={setInputText}
             multiline
+            editable={!!conversationId && !error}
           />
-          <TouchableOpacity 
-            style={[styles.sendButton, inputText.trim().length === 0 && { opacity: 0.5 }]} 
+          <TouchableOpacity
+            style={[styles.sendButton, (inputText.trim().length === 0 || !conversationId) && { opacity: 0.5 }]}
             onPress={handleSend}
-            disabled={inputText.trim().length === 0}
+            disabled={inputText.trim().length === 0 || !conversationId}
           >
             <Ionicons name="send" size={20} color="#fff" />
           </TouchableOpacity>
@@ -128,7 +220,6 @@ export default function ChatScreen() {
   );
 }
 
-// ── ESTILOS ──
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
@@ -147,8 +238,6 @@ const styles = StyleSheet.create({
     color: '#f0f0f0',
     fontSize: 18,
   },
-  
-  // Header
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -164,6 +253,7 @@ const styles = StyleSheet.create({
   headerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
   },
   avatarWrap: {
     width: 40,
@@ -173,6 +263,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
+    overflow: 'hidden',
+  },
+  avatarImg: {
+    width: 40,
+    height: 40,
   },
   avatarEmoji: {
     fontSize: 20,
@@ -182,16 +277,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
-  onlineStatus: {
-    color: '#10b981', // Verde
-    fontSize: 12,
-  },
   offlineStatus: {
     color: '#555',
     fontSize: 12,
   },
-
-  // Lista de Mensagens
   listContent: {
     padding: 16,
     paddingBottom: 24,
@@ -212,11 +301,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   bubbleUser: {
-    backgroundColor: '#e53030', // Vermelho do seu tema
+    backgroundColor: '#e53030',
     borderBottomRightRadius: 4,
   },
   bubbleContact: {
-    backgroundColor: '#2a2a2a', // Cinza escuro
+    backgroundColor: '#2a2a2a',
     borderBottomLeftRadius: 4,
   },
   messageText: {
@@ -230,8 +319,6 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: 4,
   },
-
-  // Input
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
