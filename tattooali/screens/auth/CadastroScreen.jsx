@@ -8,90 +8,23 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Ionicons } from '@expo/vector-icons';
 import { colors, radius } from '../../theme';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CadastroScreen() {
   const navigation = useNavigation();
+  const { register } = useAuth();
+
   const [nome, setNome] = useState('');
   const [sobrenome, setSobrenome] = useState('');
   const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
   const [cpf, setCpf] = useState('');
-  const [telefone, setTelefone] = useState('');
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [mostrarSenha, setMostrarSenha] = useState(false);
-
-  const API_BASE_URL = 'http://10.50.83.61:3000/api';
-
-  async function handleRegister() {
-    setError('');
-
-    const cleanedCpf = cpf.replace(/\D/g, '');
-    const cleanedTelefone = telefone.replace(/\D/g, '');
-
-    if (!nome.trim() || !sobrenome.trim()) {
-      return setError('Nome e sobrenome são obrigatórios.');
-    }
-    if (!email.trim()) {
-      return setError('E-mail é obrigatório.');
-    }
-    if (!senha || !confirmarSenha) {
-      return setError('Senha e confirmação de senha são obrigatórias.');
-    }
-    if (senha.length < 8) {
-      return setError('A senha deve ter no mínimo 8 caracteres.');
-    }
-    if (senha !== confirmarSenha) {
-      return setError('As senhas não correspondem.');
-    }
-    if (cleanedCpf.length !== 11) {
-      return setError('CPF inválido (11 dígitos).');
-    }
-
-    const payload = {
-      nome: nome.trim(),
-      sobrenome: sobrenome.trim(),
-      cpf: cleanedCpf,
-      email: email.trim().toLowerCase(),
-      senha: senha,
-      role: 'cliente',
-      telefone: cleanedTelefone || null,
-    };
-
-    setLoading(true);
-
-    try {
-      const resp = await fetch(`${API_BASE_URL}/user/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const body = await resp.json();
-
-      if (!resp.ok) {
-        const msg = body?.error || body?.message || `Erro ${resp.status}`;
-        setError(`Não foi possível cadastrar: ${msg}`);
-        return;
-      }
-
-      setError('Cadastro realizado com sucesso! Verifique seu e-mail e faça login.');
-      setTimeout(() => navigation.navigate('Login'), 1500);
-    } catch (err) {
-      setError('Falha na comunicação com o servidor. Tente novamente.');
-      console.error('[CadastroScreen] handleRegister', err);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   const [nomeFocused, setNomeFocused] = useState(false);
   const [sobrenomeFocused, setSobrenomeFocused] = useState(false);
@@ -99,7 +32,62 @@ export default function CadastroScreen() {
   const [senhaFocused, setSenhaFocused] = useState(false);
   const [confirmarFocused, setConfirmarFocused] = useState(false);
   const [cpfFocused, setCpfFocused] = useState(false);
-  const [telefoneFocused, setTelefoneFocused] = useState(false);
+
+  const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState('');
+
+  async function handleCadastrar() {
+    setErro('');
+    const n = nome.trim();
+    const s = sobrenome.trim();
+    const cpfDigits = cpf.replace(/\D/g, '');
+
+    if (n.length < 3) {
+      setErro('Nome deve ter pelo menos 3 caracteres.');
+      return;
+    }
+    if (s.length < 3) {
+      setErro('Sobrenome deve ter pelo menos 3 caracteres.');
+      return;
+    }
+    if (cpfDigits.length !== 11) {
+      setErro('Informe o CPF com 11 dígitos.');
+      return;
+    }
+    if (!email.trim()) {
+      setErro('Informe seu e-mail.');
+      return;
+    }
+    if (senha.length < 8) {
+      setErro('A senha deve ter no mínimo 8 caracteres.');
+      return;
+    }
+    if (senha !== confirmarSenha) {
+      setErro('As senhas não coincidem.');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await register({
+        nome: n,
+        sobrenome: s,
+        cpf: cpfDigits,
+        email: email.trim().toLowerCase(),
+        senha,
+        role: 'cliente',
+      });
+      Alert.alert(
+        'Conta criada',
+        res?.message || 'Verifique seu e-mail para confirmar a conta, se necessário.',
+        [{ text: 'OK', onPress: () => navigation.navigate('Login') }],
+      );
+    } catch (e) {
+      setErro(e?.message || e?.data?.error || 'Não foi possível concluir o cadastro.');
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <KeyboardAvoidingView
@@ -119,6 +107,12 @@ export default function CadastroScreen() {
           <Text style={styles.subtitle}>Junte-se à comunidade Tattoali</Text>
         </View>
 
+        {erro !== '' && (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{erro}</Text>
+          </View>
+        )}
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>NOME</Text>
           <TextInput
@@ -127,9 +121,10 @@ export default function CadastroScreen() {
             placeholderTextColor={colors.text3}
             autoCapitalize="words"
             value={nome}
-            onChangeText={setNome}
+            onChangeText={(v) => { setNome(v); setErro(''); }}
             onFocus={() => setNomeFocused(true)}
             onBlur={() => setNomeFocused(false)}
+            editable={!loading}
           />
         </View>
 
@@ -141,9 +136,10 @@ export default function CadastroScreen() {
             placeholderTextColor={colors.text3}
             autoCapitalize="words"
             value={sobrenome}
-            onChangeText={setSobrenome}
+            onChangeText={(v) => { setSobrenome(v); setErro(''); }}
             onFocus={() => setSobrenomeFocused(true)}
             onBlur={() => setSobrenomeFocused(false)}
+            editable={!loading}
           />
         </View>
 
@@ -155,23 +151,10 @@ export default function CadastroScreen() {
             placeholderTextColor={colors.text3}
             keyboardType="numeric"
             value={cpf}
-            onChangeText={setCpf}
+            onChangeText={(v) => { setCpf(v); setErro(''); }}
             onFocus={() => setCpfFocused(true)}
             onBlur={() => setCpfFocused(false)}
-          />
-        </View>
-
-        <View>
-          <Text style={styles.label}>CELULAR (opcional)</Text>
-          <TextInput
-            style={[styles.input, telefoneFocused && styles.inputFocused]}
-            placeholder="11999998888"
-            placeholderTextColor={colors.text3}
-            keyboardType="numeric"
-            value={telefone}
-            onChangeText={setTelefone}
-            onFocus={() => setTelefoneFocused(true)}
-            onBlur={() => setTelefoneFocused(false)}
+            editable={!loading}
           />
         </View>
 
@@ -185,77 +168,63 @@ export default function CadastroScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(v) => { setEmail(v); setErro(''); }}
             onFocus={() => setEmailFocused(true)}
             onBlur={() => setEmailFocused(false)}
+            editable={!loading}
           />
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>SENHA</Text>
-          <View style={styles.passwordRow}>
-            <TextInput
-              style={[styles.input, senhaFocused && styles.inputFocused, styles.passwordInput]}
-              placeholder="Mínimo 8 caracteres"
-              placeholderTextColor={colors.text3}
-              secureTextEntry={!mostrarSenha}
-              value={senha}
-              onChangeText={setSenha}
-              onFocus={() => setSenhaFocused(true)}
-              onBlur={() => setSenhaFocused(false)}
-            />
-            <TouchableOpacity
-              style={styles.showPasswordBtn}
-              onPress={() => setMostrarSenha(prev => !prev)}
-            >
-              <Ionicons name={mostrarSenha ? "eye-off" : "eye"} size={20} color={colors.text2} />
-            </TouchableOpacity>
-          </View>
+          <TextInput
+            style={[styles.input, senhaFocused && styles.inputFocused]}
+            placeholder="Mínimo 8 caracteres"
+            placeholderTextColor={colors.text3}
+            secureTextEntry
+            value={senha}
+            onChangeText={(v) => { setSenha(v); setErro(''); }}
+            onFocus={() => setSenhaFocused(true)}
+            onBlur={() => setSenhaFocused(false)}
+            editable={!loading}
+          />
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>CONFIRMAR SENHA</Text>
-          <View style={styles.passwordRow}>
-            <TextInput
-              style={[styles.input, confirmarFocused && styles.inputFocused, styles.passwordInput]}
-              placeholder="Repita sua senha"
-              placeholderTextColor={colors.text3}
-              secureTextEntry={!mostrarSenha}
-              value={confirmarSenha}
-              onChangeText={setConfirmarSenha}
-              onFocus={() => setConfirmarFocused(true)}
-              onBlur={() => setConfirmarFocused(false)}
-            />
-            <TouchableOpacity
-              style={styles.showPasswordBtn}
-              onPress={() => setMostrarSenha(prev => !prev)}
-            >
-              <Ionicons name={mostrarSenha ? "eye-off" : "eye"} size={20} color={colors.text2} />
-            </TouchableOpacity>
-          </View>
+          <TextInput
+            style={[styles.input, confirmarFocused && styles.inputFocused]}
+            placeholder="Repita sua senha"
+            placeholderTextColor={colors.text3}
+            secureTextEntry
+            value={confirmarSenha}
+            onChangeText={(v) => { setConfirmarSenha(v); setErro(''); }}
+            onFocus={() => setConfirmarFocused(true)}
+            onBlur={() => setConfirmarFocused(false)}
+            editable={!loading}
+          />
         </View>
-
-        {!!error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
 
         <TouchableOpacity
           style={[styles.btnPrimary, loading && styles.btnPrimaryDisabled]}
           activeOpacity={0.85}
-          onPress={handleRegister}
+          onPress={handleCadastrar}
           disabled={loading}
         >
-          <Text style={styles.btnPrimaryText}>{loading ? 'Cadastrando...' : 'Cadastrar'}</Text>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.btnPrimaryText}>Cadastrar</Text>
+          )}
         </TouchableOpacity>
 
-        <View style={styles.loginLinkContainer}>
-          <Text style={styles.loginTexto}>Já tenho conta</Text>
-          <TouchableOpacity style={styles.loginLinkWrap} onPress={() => navigation.navigate('Login')}>
-          <Text style={styles.loginLink}>Entrar</Text>
+        <TouchableOpacity
+          style={styles.loginLinkWrap}
+          onPress={() => navigation.navigate('Login')}
+          disabled={loading}
+        >
+          <Text style={styles.loginLink}>Já tenho conta</Text>
         </TouchableOpacity>
-        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -308,31 +277,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   inputFocused: { borderColor: colors.red },
-  passwordRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  passwordInput: {
-    flex: 1,
-    marginRight: 10,
-  },
-  showPasswordBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: colors.surface2,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  errorBox: {
-    backgroundColor: '#4f1f1f',
-    borderColor: '#7f1d1d',
-    borderWidth: 1,
-    marginVertical: 10,
-    padding: 10,
-    borderRadius: radius.sm,
-  },
-  errorText: { color: '#fda4af', fontSize: 12 },
   btnPrimary: {
     backgroundColor: colors.red,
     borderRadius: radius.md,
@@ -345,21 +289,17 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   btnPrimaryText: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 },
-  btnPrimaryDisabled: {
-    backgroundColor: '#8f1f1f',
+  btnPrimaryDisabled: { opacity: 0.65 },
+  errorBox: {
+    backgroundColor: 'rgba(229,48,48,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(229,48,48,0.3)',
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 14,
   },
-  loginLinkWrap: { alignItems: 'center'},
-  loginLink: { color: colors.text2, fontSize: 13 , fontWeight: '600', textDecorationLine:'underline'},
-    loginLinkContainer: {
-      flexDirection: 'row',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginTop: 16,
-    },
-    loginTexto: {
-      color: colors.text2,
-      fontSize: 13,
-      marginRight: 6,
-      
-    },
-  });
+  errorText: { color: '#f87171', fontSize: 13, textAlign: 'center' },
+  loginLinkWrap: { alignItems: 'center', marginTop: 16 },
+  loginLink: { color: colors.text2, fontSize: 13 },
+});
