@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  Pressable,
   ScrollView,
   RefreshControl,
   StyleSheet,
@@ -12,17 +13,52 @@ import {
   Alert,
   Platform,
   ToastAndroid,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Navbar from '../components/Navbar';
+import { api } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
-const API_BASE_URL = 'http://10.50.83.61:3000/api';
+/** Título do card: cliente vê nome da ficha (Clients) + linha com tatuador; tatuador vê nome do cliente. */
+function sessionCardTitle(sessao, viewerIsCliente) {
+  if (!viewerIsCliente) {
+    return { main: sessao.cliente?.nome ?? 'Cliente', sub: null };
+  }
+  const u = sessao.User;
+  const tatuador = u ? `${u.nome || ''} ${u.sobrenome || ''}`.trim() : '';
+  const tatuadorLabel = tatuador || 'Tatuador';
+  const clienteNome = String(sessao.cliente?.nome || '').trim();
+  if (clienteNome) {
+    return { main: clienteNome, sub: `com ${tatuadorLabel}` };
+  }
+  return { main: tatuadorLabel, sub: null };
+}
+
+function hasCpf11(u) {
+  return String(u?.cpf || '').replace(/\D/g, '').length === 11;
+}
+
+function tatuadorNomeParaReview(sessao) {
+  const u = sessao?.User;
+  const full = u ? `${u.nome || ''} ${u.sobrenome || ''}`.trim() : '';
+  return full || 'o tatuador';
+}
 
 export default function AgendaScreen() {
   const navigation = useNavigation();
+  const { user } = useAuth();
+  const viewerIsCliente = user?.role === 'cliente';
+  /** Quando role veio como tatuador mas a pessoa só tem sessões como cliente (CPF na agenda). */
+  const [listLoadKind, setListLoadKind] = useState({
+    agendadas: 'artist',
+    concluidas: 'artist',
+    canceladas: 'artist',
+  });
   const [activeTab, setActiveTab] = useState('agendadas');
   const [modalVisible, setModalVisible] = useState(false);
+  const [reviewSession, setReviewSession] = useState(null);
+  const [submittingReview, setSubmittingReview] = useState(false);
   const [currentRating, setCurrentRating] = useState(0);
   const [comentario, setComentario] = useState('');
   const [agendadas, setAgendadas] = useState([]);
@@ -41,62 +77,76 @@ export default function AgendaScreen() {
     Alert.alert('Aviso', message);
   }
 
-  async function getAuthHeaders() {
-    try {
-      const token = await AsyncStorage.getItem('@tattooali:token');
-      if (!token) return {};
-      return {
-        Authorization: `Bearer ${token}`,
-      };
-    } catch {
-      return {};
-    }
-  }
-
+  /** @returns {Promise<number[]|null>} lista em sucesso; null se falhou a requisição */
   async function fetchSessions(endpoint, setter) {
     setLoading(true);
     setError(null);
     try {
-      const headersAuth = await getAuthHeaders();
-      const resp = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headersAuth,
-        },
-      });
-
-      if (!resp.ok) {
-        const msg = resp.status === 401
-          ? 'Sessão expirada. Faça login novamente.'
-          : `Não foi possível carregar agenda (${resp.status}).`;
-        setError(msg);
-        showNotice(msg);
-        setter([]);
-        return;
-      }
-
-      const data = await resp.json();
-      setter(Array.isArray(data) ? data : []);
+      const data = await api.get(`/api${endpoint}`);
+      const arr = Array.isArray(data) ? data : [];
+      setter(arr);
       setLastLoadedAt(new Date());
+      return arr;
     } catch (e) {
-      const msg = 'Não foi possível carregar agenda. Verifique sua conexão e tente novamente.';
+      const status = e?.status;
+      let msg =
+        'Não foi possível carregar agenda. Verifique sua conexão e tente novamente.';
+      if (status === 401) {
+        msg = 'Sessão expirada. Faça login novamente.';
+      } else if (status === 403) {
+        msg = 'Sem permissão para ver esta agenda com esta conta.';
+      } else if (status != null) {
+        msg = `Não foi possível carregar agenda (${status}).`;
+      }
       setError(msg);
       showNotice(msg);
       setter([]);
+      return null;
     } finally {
       setLoading(false);
     }
   }
 
   async function handleLoadByTab(tab) {
-    if (tab === 'agendadas') {
-      await fetchSessions('/sessions/pendentes', setAgendadas);
-    } else if (tab === 'concluidas') {
-      await fetchSessions('/sessions/realizadas', setConcluidas);
-    } else if (tab === 'canceladas') {
-      await fetchSessions('/sessions/canceladas', setCanceladas);
+    const key = tab === 'agendadas' ? 'agendadas' : tab === 'concluidas' ? 'concluidas' : 'canceladas';
+    const artistPaths = {
+      agendadas: '/sessions/pendentes',
+      concluidas: '/sessions/realizadas',
+      canceladas: '/sessions/canceladas',
+    };
+    const clientPaths = {
+      agendadas: '/mobile/sessions/me/pendentes',
+      concluidas: '/mobile/sessions/me/realizadas',
+      canceladas: '/mobile/sessions/me/canceladas',
+    };
+    const setters = {
+      agendadas: setAgendadas,
+      concluidas: setConcluidas,
+      canceladas: setCanceladas,
+    };
+
+    const setKind = kind =>
+      setListLoadKind(prev => ({ ...prev, [key]: kind }));
+
+    if (viewerIsCliente) {
+      const r = await fetchSessions(clientPaths[tab], setters[tab]);
+      if (r !== null) setKind('client');
+      return;
     }
+
+    const art = await fetchSessions(artistPaths[tab], setters[tab]);
+    if (art === null) return;
+    if (art.length === 0 && hasCpf11(user)) {
+      const c = await fetchSessions(clientPaths[tab], setters[tab]);
+      if (c !== null) setKind(c.length > 0 ? 'client' : 'artist');
+    } else {
+      setKind('artist');
+    }
+  }
+
+  function useClienteCardLayoutForList(tab) {
+    const key = tab === 'agendadas' ? 'agendadas' : tab === 'concluidas' ? 'concluidas' : 'canceladas';
+    return viewerIsCliente || listLoadKind[key] === 'client';
   }
 
   async function handleRefresh() {
@@ -110,28 +160,15 @@ export default function AgendaScreen() {
     setLoading(true);
     setError(null);
     try {
-      const headersAuth = await getAuthHeaders();
-      const resp = await fetch(`${API_BASE_URL}/sessions/${sessionId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...headersAuth,
-        },
-        body: JSON.stringify({ cancelado: true }),
-      });
-
-      if (!resp.ok) {
-        const msg = 'Não foi possível cancelar a sessão.';
-        setError(msg);
-        showNotice(msg);
-        return;
-      }
-
+      await api.put(`/api/sessions/${sessionId}`, { cancelado: true });
       showNotice('Sessão cancelada com sucesso.');
       await handleLoadByTab('agendadas');
       await handleLoadByTab('canceladas');
-    } catch {
-      const msg = 'Não foi possível cancelar a sessão.';
+    } catch (e) {
+      const msg =
+        e?.status === 403
+          ? 'Sem permissão para cancelar esta sessão.'
+          : 'Não foi possível cancelar a sessão.';
       setError(msg);
       showNotice(msg);
     } finally {
@@ -152,18 +189,55 @@ export default function AgendaScreen() {
   }
 
   useEffect(() => {
+    setListLoadKind({ agendadas: 'artist', concluidas: 'artist', canceladas: 'artist' });
+  }, [user?.user_id, user?.role]);
+
+  useEffect(() => {
     handleLoadByTab(activeTab);
-  }, [activeTab]);
+  }, [activeTab, viewerIsCliente, user?.role, user?.cpf]);
 
   function handleSetRating(n) {
     setCurrentRating(n);
   }
 
-  function handleSubmitRating() {
-    if (currentRating === 0) return;
+  function closeReviewModal() {
     setModalVisible(false);
+    setReviewSession(null);
     setCurrentRating(0);
     setComentario('');
+    setSubmittingReview(false);
+  }
+
+  async function handleSubmitRating() {
+    if (currentRating === 0) {
+      showNotice('Selecione uma nota de 1 a 5 estrelas.');
+      return;
+    }
+    const sid = reviewSession?.sessao_id ?? reviewSession?.id;
+    if (sid == null || !Number.isFinite(Number(sid))) {
+      Alert.alert('Erro', 'Sessão inválida. Feche e abra de novo pelo card.');
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      await api.post('/api/reviews', {
+        sessao_id: Number(sid),
+        nota: currentRating,
+        comentario: comentario.trim() || '',
+      });
+      closeReviewModal();
+      showNotice('Avaliação enviada com sucesso!');
+      await handleLoadByTab('concluidas');
+    } catch (e) {
+      const msg =
+        e?.data?.error ||
+        e?.data?.message ||
+        e?.message ||
+        'Não foi possível enviar a avaliação.';
+      Alert.alert('Erro', String(msg));
+    } finally {
+      setSubmittingReview(false);
+    }
   }
 
   return (
@@ -241,14 +315,19 @@ export default function AgendaScreen() {
             {agendadas.length === 0 && !loading ? (
               <Text style={styles.emptyText} />
             ) : (
-              agendadas.map(sessao => (
+              agendadas.map(sessao => {
+                const t = sessionCardTitle(sessao, useClienteCardLayoutForList('agendadas'));
+                return (
                 <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
                   <View style={styles.sessionCardHeader}>
                     <View style={styles.sessionAvatar}>
                       <Text style={styles.sessionAvatarEmoji}>🎨</Text>
                     </View>
                     <View style={styles.sessionInfo}>
-                      <Text style={styles.sessionName}>{sessao.cliente?.nome ?? 'Cliente'}</Text>
+                      <Text style={styles.sessionName}>{t.main}</Text>
+                      {t.sub ? (
+                        <Text style={styles.sessionSub}>{t.sub}</Text>
+                      ) : null}
                       <Text style={styles.sessionDate}>
                         {sessao.data_atendimento
                           ? new Date(sessao.data_atendimento).toLocaleString()
@@ -267,15 +346,18 @@ export default function AgendaScreen() {
                     >
                       <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.btnOutlineSm, styles.btnDanger]}
-                      onPress={() => handleCancelSession(sessao.sessao_id || sessao.id)}
-                    >
-                      <Text style={[styles.btnOutlineSmText, { color: '#f87171' }]}>✕ Cancelar</Text>
-                    </TouchableOpacity>
+                    {!useClienteCardLayoutForList('agendadas') ? (
+                      <TouchableOpacity
+                        style={[styles.btnOutlineSm, styles.btnDanger]}
+                        onPress={() => handleCancelSession(sessao.sessao_id || sessao.id)}
+                      >
+                        <Text style={[styles.btnOutlineSmText, { color: '#f87171' }]}>✕ Cancelar</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </View>
-              ))
+                );
+              })
             )}
           </View>
         )}
@@ -285,14 +367,19 @@ export default function AgendaScreen() {
             {concluidas.length === 0 && !loading ? (
               <Text style={styles.emptyText} />
             ) : (
-              concluidas.map(sessao => (
+              concluidas.map(sessao => {
+                const t = sessionCardTitle(sessao, useClienteCardLayoutForList('concluidas'));
+                return (
                 <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
                   <View style={styles.sessionCardHeader}>
                     <View style={styles.sessionAvatar}>
                       <Text style={styles.sessionAvatarEmoji}>🖋️</Text>
                     </View>
                     <View style={styles.sessionInfo}>
-                      <Text style={styles.sessionName}>{sessao.cliente?.nome ?? 'Cliente'}</Text>
+                      <Text style={styles.sessionName}>{t.main}</Text>
+                      {t.sub ? (
+                        <Text style={styles.sessionSub}>{t.sub}</Text>
+                      ) : null}
                       <Text style={styles.sessionDate}>
                         {sessao.data_atendimento
                           ? new Date(sessao.data_atendimento).toLocaleString()
@@ -311,15 +398,23 @@ export default function AgendaScreen() {
                     >
                       <Text style={styles.btnOutlineSmText}>💬 Chat</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.btnPrimarySm}
-                      onPress={() => setModalVisible(true)}
-                    >
-                      <Text style={styles.btnPrimarySmText}>⭐ Avaliar</Text>
-                    </TouchableOpacity>
+                    {useClienteCardLayoutForList('concluidas') ? (
+                      <TouchableOpacity
+                        style={styles.btnPrimarySm}
+                        onPress={() => {
+                          setReviewSession(sessao);
+                          setCurrentRating(0);
+                          setComentario('');
+                          setModalVisible(true);
+                        }}
+                      >
+                        <Text style={styles.btnPrimarySmText}>⭐ Avaliar</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </View>
-              ))
+                );
+              })
             )}
           </View>
         )}
@@ -329,14 +424,19 @@ export default function AgendaScreen() {
             {canceladas.length === 0 && !loading ? (
               <Text style={styles.emptyText} />
             ) : (
-              canceladas.map(sessao => (
+              canceladas.map(sessao => {
+                const t = sessionCardTitle(sessao, useClienteCardLayoutForList('canceladas'));
+                return (
                 <View key={sessao.sessao_id || sessao.id} style={styles.sessionCard}>
                   <View style={styles.sessionCardHeader}>
                     <View style={styles.sessionAvatar}>
                       <Text style={styles.sessionAvatarEmoji}>🎨</Text>
                     </View>
                     <View style={styles.sessionInfo}>
-                      <Text style={styles.sessionName}>{sessao.cliente?.nome ?? 'Cliente'}</Text>
+                      <Text style={styles.sessionName}>{t.main}</Text>
+                      {t.sub ? (
+                        <Text style={styles.sessionSub}>{t.sub}</Text>
+                      ) : null}
                       <Text style={styles.sessionDate}>
                         {sessao.data_atendimento
                           ? new Date(sessao.data_atendimento).toLocaleString()
@@ -357,7 +457,8 @@ export default function AgendaScreen() {
                     </TouchableOpacity>
                   </View>
                 </View>
-              ))
+                );
+              })
             )}
           </View>
         )}
@@ -369,49 +470,75 @@ export default function AgendaScreen() {
         visible={modalVisible}
         transparent
         animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={closeReviewModal}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={() => setModalVisible(false)}
-        >
-          <TouchableOpacity style={styles.modalSheet} activeOpacity={1}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>AVALIAR SESSÃO</Text>
-            <Text style={styles.modalSubtitle}>
-              Como foi sua experiência com{' '}
-              <Text style={{ color: '#e53030' }}>Marina Bones</Text>?
-            </Text>
-            <View style={styles.starRating}>
-              {[1, 2, 3, 4, 5].map(n => (
-                <TouchableOpacity key={n} onPress={() => handleSetRating(n)}>
-                  <Text style={[styles.star, n <= currentRating ? styles.starSelected : styles.starEmpty]}>
-                    ★
+        <View style={styles.modalOverlay}>
+          <Pressable style={styles.modalBackdrop} onPress={closeReviewModal} />
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.modalKeyboardAvoid}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+          >
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+              contentContainerStyle={styles.modalScrollContent}
+            >
+              <View style={styles.modalSheet}>
+                <View style={styles.modalHandle} />
+                <Text style={styles.modalTitle}>AVALIAR SESSÃO</Text>
+                <Text style={styles.modalSubtitle}>
+                  Como foi sua experiência com{' '}
+                  <Text style={{ color: '#e53030' }}>
+                    {reviewSession ? tatuadorNomeParaReview(reviewSession) : 'o tatuador'}
                   </Text>
+                  ?
+                </Text>
+                <View style={styles.starRating}>
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <TouchableOpacity key={n} onPress={() => handleSetRating(n)}>
+                      <Text style={[styles.star, n <= currentRating ? styles.starSelected : styles.starEmpty]}>
+                        ★
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>COMENTÁRIO (OPCIONAL)</Text>
+                  <TextInput
+                    style={styles.textarea}
+                    placeholder="Conte como foi sua experiência..."
+                    placeholderTextColor="#555"
+                    multiline
+                    numberOfLines={4}
+                    value={comentario}
+                    onChangeText={setComentario}
+                    scrollEnabled
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, submittingReview && { opacity: 0.7 }]}
+                  onPress={handleSubmitRating}
+                  disabled={submittingReview}
+                >
+                  {submittingReview ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.btnPrimaryText}>Enviar Avaliação</Text>
+                  )}
                 </TouchableOpacity>
-              ))}
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>COMENTÁRIO (OPCIONAL)</Text>
-              <TextInput
-                style={styles.textarea}
-                placeholder="Conte como foi sua experiência..."
-                placeholderTextColor="#555"
-                multiline
-                numberOfLines={4}
-                value={comentario}
-                onChangeText={setComentario}
-              />
-            </View>
-            <TouchableOpacity style={styles.btnPrimary} onPress={handleSubmitRating}>
-              <Text style={styles.btnPrimaryText}>Enviar Avaliação</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btnOutline, { marginTop: 8 }]} onPress={() => setModalVisible(false)}>
-              <Text style={styles.btnOutlineText}>Cancelar</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnOutline, { marginTop: 8 }]}
+                  onPress={closeReviewModal}
+                  disabled={submittingReview}
+                >
+                  <Text style={styles.btnOutlineText}>Cancelar</Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
       </Modal>
     </View>
   );
@@ -539,6 +666,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#f0f0f0',
   },
+  sessionSub: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
   sessionDate: {
     fontSize: 12,
     color: '#888',
@@ -654,8 +786,24 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
+  },
+  /** Área clicável para fechar (atrás do sheet). */
+  modalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  /** Empurra o sheet quando o teclado abre; ScrollView permite ver o campo enquanto digita. */
+  modalKeyboardAvoid: {
+    flex: 1,
+    width: '100%',
     justifyContent: 'flex-end',
+    zIndex: 1,
+    elevation: 12,
+  },
+  modalScrollContent: {
+    flexGrow: 1,
+    justifyContent: 'flex-end',
+    paddingBottom: 12,
   },
   modalSheet: {
     backgroundColor: '#141414',
@@ -664,7 +812,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#2a2a2a',
     padding: 24,
-    paddingBottom: 40,
+    paddingBottom: 28,
+    maxHeight: Platform.OS === 'ios' ? '85%' : undefined,
   },
   modalHandle: {
     width: 36,
