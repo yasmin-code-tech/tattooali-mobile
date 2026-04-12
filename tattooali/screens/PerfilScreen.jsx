@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,33 @@ import {
   ScrollView,
   StyleSheet,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
+
+function formatPhoneBR(digits) {
+  const d = String(digits || '').replace(/\D/g, '');
+  if (d.length === 11) {
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  }
+  if (d.length === 10) {
+    return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  }
+  return d ? d : '—';
+}
+
+function formatDateDisplay(iso) {
+  if (!iso) return '—';
+  const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return '—';
+  return `${m[3]}/${m[2]}/${m[1]}`;
+}
+
+function formatCpfChip(cpf) {
+  const d = String(cpf || '').replace(/\D/g, '');
+  if (d.length !== 11) return '—';
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+}
 
 const SETTINGS_ITEMS = [
   { emoji: '📅', label: 'Minha Agenda',            bg: 'rgba(59,130,246,0.1)',  route: 'Agenda', danger: false },
@@ -22,8 +46,14 @@ const SETTINGS_ITEMS = [
 export default function PerfilScreen({ route }) {
   const navigation = useNavigation();
 
-  const { logout } = useAuth();
-  
+  const { logout, user, refreshUser } = useAuth();
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshUser();
+    }, [refreshUser]),
+  );
+
   function handleItemPress(item) {
   if (item.isLogout) {
     logout();
@@ -32,17 +62,36 @@ export default function PerfilScreen({ route }) {
 
   if (item.route) navigation.navigate(item.route); // ← só chega aqui se NÃO for logout
 }
-  const profile = route?.params?.profile ?? {
-    name:        'João Pedro Lima',
-    email:       'joao@email.com',
-    phone:       '(11) 99999-0000',
-    birth:       '12/05/1995',
-    cidade:      'São Paulo',
-    estado:      'SP',
-    style:       'Realismo',
-    avatarEmoji: '👤',
-    avatarImg:   null,
-  };
+  const profile = useMemo(() => {
+    const cpfChip = formatCpfChip(user?.cpf);
+    if (route?.params?.profile) {
+      return { ...route.params.profile, cpf: cpfChip };
+    }
+    const name =
+      [user?.nome, user?.sobrenome].filter(Boolean).join(' ').trim() ||
+      user?.name ||
+      'Usuário';
+    const cidade =
+      user?.cidade && String(user.cidade).trim() ? String(user.cidade).trim() : '—';
+    const estado =
+      user?.uf && String(user.uf).trim() ? String(user.uf).trim().toUpperCase() : '—';
+    const styleChip =
+      user?.estilo_favorito && String(user.estilo_favorito).trim()
+        ? String(user.estilo_favorito).trim()
+        : '—';
+    return {
+      name,
+      email: user?.email || '—',
+      phone: formatPhoneBR(user?.telefone),
+      cpf: cpfChip,
+      birth: formatDateDisplay(user?.data_nascimento),
+      cidade,
+      estado,
+      style: styleChip,
+      avatarEmoji: '👤',
+      avatarImg: null,
+    };
+  }, [route?.params?.profile, user]);
 
   return (
     <View style={styles.root}>
@@ -58,6 +107,7 @@ export default function PerfilScreen({ route }) {
           <Text style={styles.clientEmail}>{profile.email}</Text>
           <View style={styles.infoChips}>
             <View style={styles.infoChip}><Text style={styles.infoChipText}>📱 {profile.phone}</Text></View>
+            <View style={styles.infoChip}><Text style={styles.infoChipText}>🪪 CPF {profile.cpf}</Text></View>
             <View style={styles.infoChip}><Text style={styles.infoChipText}>📍 {profile.cidade}, {profile.estado}</Text></View>
             <View style={styles.infoChip}><Text style={styles.infoChipText}>🎂 {profile.birth}</Text></View>
             <View style={styles.infoChip}><Text style={styles.infoChipText}>🎨 {profile.style}</Text></View>
