@@ -1,10 +1,23 @@
-
- import React from 'react';
-import { Modal, View, Text, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
+import React from 'react';
+import {
+  Modal,
+  View,
+  Text,
+  ScrollView,
+  TouchableOpacity,
+  StyleSheet,
+  Image,
+  ActivityIndicator,
+  InteractionManager,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme';
 import CommentCard from './CommentCard';
+
+function isRemoteUrl(s) {
+  return s && /^https?:\/\//i.test(String(s));
+}
 
 const renderStars = (rating, size) => {
   const full = Math.floor(rating);
@@ -15,14 +28,21 @@ const renderStars = (rating, size) => {
       <Text style={styles.starsEmpty}>{'☆'.repeat(empty)}</Text>
     </Text>
   );
-} 
+};
 
-function GalleryItem({ emoji }) {
-   return (
-     <View style={styles.galleryItem}>
-       <Text style={styles.galleryEmoji}>{emoji}</Text>
-     </View>
-   );
+function GalleryItem({ uri, emoji }) {
+  if (uri && isRemoteUrl(uri)) {
+    return (
+      <View style={styles.galleryItem}>
+        <Image source={{ uri }} style={styles.galleryImage} resizeMode="cover" />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.galleryItem}>
+      <Text style={styles.galleryEmoji}>{emoji || '🖼️'}</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -54,8 +74,15 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     gap: 14,
   },
-
-  // ── Modal — header
+  modalLoadingBox: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    gap: 8,
+  },
+  modalLoadingText: {
+    color: colors.text2,
+    fontSize: 13,
+  },
   modalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -74,9 +101,6 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     padding: 0,
   },
-  modalReportBtnText: {
-    fontSize: 16,
-  },
   modalAvatar: {
     width: 72,
     height: 72,
@@ -86,9 +110,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   modalAvatarEmoji: {
     fontSize: 32,
+  },
+  modalAvatarPhoto: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
   },
   modalName: {
     fontSize: 20,
@@ -103,8 +133,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-
-  // ── Modal — info row
   modalInfoRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -119,21 +147,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 1,
   },
+  modalInfoLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: colors.text3,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
   modalInfoText: {
     flex: 1,
     fontSize: 13,
     color: colors.text2,
     lineHeight: 20,
   },
-
-  // ── Modal — bio
   modalBio: {
     fontSize: 13,
     color: colors.text2,
     lineHeight: 21,
   },
-
-  // ── Modal — section title
+  modalChatBtn: {
+    backgroundColor: colors.red,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  modalChatBtnText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
   modalSectionTitle: {
     fontSize: 11,
     fontWeight: '700',
@@ -145,8 +190,11 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
     marginTop: 4,
   },
-
-  // ── Gallery
+  modalEmptyHint: {
+    color: colors.text3,
+    fontSize: 13,
+    marginBottom: 8,
+  },
   galleryRow: {
     gap: 10,
     paddingBottom: 4,
@@ -160,29 +208,15 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
   galleryEmoji: {
     fontSize: 36,
   },
-
-  // ── Modal — CTAs
-  modalBtnPrimary: {
-    backgroundColor: colors.red,
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    marginTop: 8,
-    shadowColor: colors.red,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  modalBtnPrimaryText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: 0.3,
+  galleryImage: {
+    width: 90,
+    height: 90,
+    borderRadius: 12,
   },
   modalBtnOutline: {
     paddingVertical: 14,
@@ -196,91 +230,172 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  stars: {
+    color: colors.gold,
+    letterSpacing: 1,
+  },
+  starsEmpty: {
+    color: colors.border,
+  },
 });
 
-export function ArtistModal({ artist, visible, onClose, onReport }) {
+export function ArtistModal({
+  artist,
+  visible,
+  onClose,
+  onReport,
+  loadingDetail = false,
+  onOpenChat,
+}) {
   const navigation = useNavigation();
   if (!artist) return null;
+
+  const showPhoto = isRemoteUrl(artist.avatar);
+  const initial = (artist.name && artist.name.charAt(0).toUpperCase()) || '🎨';
+  const galleryItems = Array.isArray(artist.gallery) ? artist.gallery : [];
+  const comments = Array.isArray(artist.comments) ? artist.comments : [];
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
+            {loadingDetail ? (
+              <View style={styles.modalLoadingBox}>
+                <ActivityIndicator size="large" color={colors.red} />
+                <Text style={styles.modalLoadingText}>Carregando perfil…</Text>
+              </View>
+            ) : null}
 
-            {/* Header */}
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}>
                 <View style={styles.modalAvatar}>
-                  <Text style={styles.modalAvatarEmoji}>{artist.avatar}</Text>
+                  {showPhoto ? (
+                    <Image source={{ uri: artist.avatar }} style={styles.modalAvatarPhoto} resizeMode="cover" />
+                  ) : (
+                    <Text style={styles.modalAvatarEmoji}>{initial}</Text>
+                  )}
                 </View>
 
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalName}>{artist.name}</Text>
                   <Text style={styles.modalStyles}>{artist.styles.join(' · ').toUpperCase()}</Text>
-                  {renderStars(artist.avg_rating, 15)}
+                  {renderStars(artist.avg_rating || 0, 15)}
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={styles.modalReportBtn}
-                onPress={onReport}
-                activeOpacity={0.7}
-              >
+              <TouchableOpacity style={styles.modalReportBtn} onPress={onReport} activeOpacity={0.7}>
                 <Ionicons name="flag-outline" size={22} color={colors.text} />
               </TouchableOpacity>
             </View>
 
-            {/* Address */}
+            {artist.bairro ? (
+              <View style={styles.modalInfoRow}>
+                <Text style={styles.modalInfoIcon}>📌</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.modalInfoLabel}>Bairro</Text>
+                  <Text style={styles.modalInfoText}>{artist.bairro}</Text>
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.modalInfoRow}>
               <Text style={styles.modalInfoIcon}>📍</Text>
               <Text style={styles.modalInfoText}>{artist.address}</Text>
             </View>
 
-            {/* Bio */}
             <Text style={styles.modalBio}>{artist.bio}</Text>
 
-            {/* Gallery */}
+            {!loadingDetail && artist.user_id ? (
+              <TouchableOpacity
+                style={styles.modalChatBtn}
+                onPress={() => onOpenChat?.(artist)}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.modalChatBtnText}>Conversar</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <Text style={styles.modalSectionTitle}>GALERIA</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.galleryRow}
             >
-              {artist.gallery.map((emoji, i) => (
-                <GalleryItem key={i} emoji={emoji} />
-              ))}
+              {galleryItems.length === 0 ? (
+                <Text style={styles.modalEmptyHint}>Nenhuma foto na galeria ainda.</Text>
+              ) : (
+                galleryItems.map((item, i) =>
+                  isRemoteUrl(item) ? (
+                    <GalleryItem key={i} uri={item} />
+                  ) : (
+                    <GalleryItem key={i} emoji={item} />
+                  ),
+                )
+              )}
             </ScrollView>
 
-            <View style={{marginTop: 18, marginBottom: 8}}>
-              <View style={{flexDirection:'row', alignItems:'center', justifyContent:'space-between', flexWrap: 'wrap', gap: 10}}>
+            <View style={{ marginTop: 18, marginBottom: 8 }}>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 10,
+                }}
+              >
                 <Text style={styles.modalSectionTitle}>AVALIAÇÕES</Text>
-                <TouchableOpacity 
-                  style={[styles.modalBtnOutline, {paddingVertical: 8, paddingHorizontal: 16, minHeight: 36, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.red, backgroundColor: 'transparent'}]}
-                  onPress={() => navigation.navigate('Review', { artist })} 
+                <TouchableOpacity
+                  style={[
+                    styles.modalBtnOutline,
+                    {
+                      paddingVertical: 8,
+                      paddingHorizontal: 16,
+                      minHeight: 36,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: colors.red,
+                      backgroundColor: 'transparent',
+                    },
+                  ]}
+                  onPress={() => {
+                    const uid =
+                      artist.user_id != null && Number.isFinite(Number(artist.user_id))
+                        ? Number(artist.user_id)
+                        : Number.parseInt(String(artist.id), 10);
+                    const artistForReview = {
+                      ...artist,
+                      ...(Number.isFinite(uid) && uid >= 1 ? { user_id: uid } : {}),
+                    };
+                    onClose();
+                    InteractionManager.runAfterInteractions(() => {
+                      navigation.navigate('Review', { artist: artistForReview });
+                    });
+                  }}
                   activeOpacity={0.85}
                 >
-                  <Ionicons name="add-outline" size={20} color={colors.red} style={{marginRight: 4}} />
-                  <Text style={[styles.modalBtnOutlineText, {color: colors.red, fontWeight: '700'}]}>Adicionar avaliação</Text>
+                  <Ionicons name="add-outline" size={20} color={colors.red} style={{ marginRight: 4 }} />
+                  <Text style={[styles.modalBtnOutlineText, { color: colors.red, fontWeight: '700' }]}>
+                    Adicionar avaliação
+                  </Text>
                 </TouchableOpacity>
               </View>
-              <View style={{marginTop: 10, gap: 10}}>
-                {artist.comments.map(c => (
-                  <CommentCard key={c.id} comment={c} />
-                ))}
+              <View style={{ marginTop: 10, gap: 10 }}>
+                {comments.length === 0 ? (
+                  <Text style={styles.modalEmptyHint}>Sem avaliações públicas ainda.</Text>
+                ) : (
+                  comments.map((c) => <CommentCard key={c.id} comment={c} />)
+                )}
               </View>
             </View>
 
             <TouchableOpacity style={styles.modalBtnOutline} onPress={onClose} activeOpacity={0.85}>
               <Text style={styles.modalBtnOutlineText}>Fechar</Text>
             </TouchableOpacity>
-
           </ScrollView>
         </View>
       </View>

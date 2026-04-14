@@ -9,17 +9,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,Image,
+  Alert,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-
+import { getApiConfigDebug } from '../../lib/config';
 
 export default function LoginScreen() {
   const navigation = useNavigation();
-  const { login }  = useAuth();
+  const { login } = useAuth();
+  const apiDebug = typeof __DEV__ !== 'undefined' && __DEV__ ? getApiConfigDebug() : null;
 
   const [email, setEmail]               = useState('');
   const [senha, setSenha]               = useState('');
@@ -66,10 +68,9 @@ export default function LoginScreen() {
         {/* Logo */}
         <View style={styles.logoArea}>
           <View style={styles.logoMark}>
-            < Image 
-            source = {require('../../assets/logo.png')}
-            style={styles.logoImage}
-            
+            <Image
+              source={require('../../assets/logo.png')}
+              style={styles.logoImage}
             />
           </View>
           <Text style={styles.logoTitle}>TATTOOALI</Text>
@@ -171,6 +172,19 @@ export default function LoginScreen() {
           </TouchableOpacity>
           </View>
         </View>
+
+        {apiDebug ? (
+          <View style={styles.apiDebugBox}>
+            <Text style={styles.apiDebugLabel}>API (só em desenvolvimento)</Text>
+            <Text style={styles.apiDebugUrl} selectable>
+              {apiDebug.API_ORIGIN}
+            </Text>
+            <Text style={styles.apiDebugSource}>Origem: {apiDebug.source}</Text>
+            {apiDebug.hint ? (
+              <Text style={styles.apiDebugHint}>{apiDebug.hint}</Text>
+            ) : null}
+          </View>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -302,7 +316,7 @@ const styles = StyleSheet.create({
   authLink:    { color: colors.text2, fontSize: 13 },
   authDivider: { color: colors.text3, fontSize: 11 },
 
-  LinkContainer:{
+  LinkContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
@@ -310,11 +324,30 @@ const styles = StyleSheet.create({
   Linktexto: {
     color: colors.text2,
     fontSize: 13,
-    fontWeight: '300'
+    fontWeight: '300',
   },
   Linkrota: {
     color: colors.text3,
     fontSize: 13,
-    fontWeight: '500'
+    fontWeight: '500',
   },
+  apiDebugBox: {
+    marginTop: 28,
+    padding: 12,
+    borderRadius: radius.sm,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+  },
+  apiDebugLabel: {
+    color: colors.text3,
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    textTransform: 'uppercase',
+  },
+  apiDebugUrl: { color: colors.text, fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  apiDebugSource: { color: colors.text2, fontSize: 11, marginTop: 6 },
+  apiDebugHint: { color: '#fbbf24', fontSize: 11, marginTop: 8, lineHeight: 16 },
 });

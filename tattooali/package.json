@@ -2,7 +2,11 @@
   "name": "tattooali",
   "version": "1.0.0",
   "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
+    "prestart": "node scripts/check-node-version.js",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -12,8 +16,10 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.1.33",
     "@react-navigation/native-stack": "^7.14.4",
+    "@supabase/supabase-js": "^2.103.0",
     "babel-preset-expo": "^54.0.10",
     "expo": "~54.0.33",
+    "expo-constants": "~18.0.13",
     "expo-status-bar": "~3.0.9",
     "nativewind": "^4.2.1",
     "react": "19.1.0",
