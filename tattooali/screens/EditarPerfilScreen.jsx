@@ -12,6 +12,8 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 
@@ -35,9 +37,9 @@ function formatCpfDisplay(digits) {
 }
 
 function formatDateBRFromIso(iso) {
-  if (!iso) return '—';
+  if (!iso) return '';
   const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (!m) return '—';
+  if (!m) return '';
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
@@ -58,7 +60,7 @@ function draftFromUser(u) {
     observacoes: u.bio && String(u.bio).trim() ? String(u.bio).trim() : '',
     style: u.estilo_favorito && u.estilo_favorito.trim() ? u.estilo_favorito : 'Realismo',
     avatarImg: null,
-    avatarEmoji: '👤',
+    avatarIcon: 'person',
   };
 }
 
@@ -85,9 +87,9 @@ const ESTADO_OPTIONS = ['SP', 'RJ', 'MG', 'RS', 'PR', 'SC', 'BA', 'CE', 'PE', 'G
 const STYLE_OPTIONS  = ['Realismo', 'Old School', 'Blackwork', 'Minimalista', 'Aquarela', 'Geométrico', 'Neotradicional', 'Japonês'];
 
 const AVATAR_OPTIONS = [
-  { emoji: '🎨', label: 'Avatar — Artista',       bg: 'rgba(229,48,48,0.12)'  },
-  { emoji: '🦅', label: 'Avatar — Colecionador',  bg: 'rgba(245,158,11,0.12)' },
-  { emoji: '🐉', label: 'Avatar — Dragão',         bg: 'rgba(139,92,246,0.12)' },
+  { icon: 'color-palette', label: 'Avatar — Artista',       bg: 'rgba(229,48,48,0.12)',  color: '#e53030' },
+  { icon: 'diamond',       label: 'Avatar — Colecionador',  bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
+  { icon: 'flame',         label: 'Avatar — Dragão',        bg: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
 ];
 
 function SimpleSelect({ value, onChange, options }) {
@@ -141,7 +143,7 @@ export default function EditarPerfilScreen() {
       return {
         ...fromUser,
         ...(routeProfile && {
-          avatarEmoji: routeProfile.avatarEmoji,
+          avatarIcon: routeProfile.avatarIcon || 'person',
           avatarImg: routeProfile.avatarImg,
         }),
       };
@@ -152,7 +154,7 @@ export default function EditarPerfilScreen() {
         cpf: '',
         email: '',
         phone: '',
-        birth: '—',
+        birth: '',
         gender: 'Prefiro não dizer',
         cidade: '—',
         estado: 'SP',
@@ -160,7 +162,7 @@ export default function EditarPerfilScreen() {
         observacoes: '',
         style: 'Realismo',
         avatarImg: null,
-        avatarEmoji: '👤',
+        avatarIcon: 'person',
       }
     );
   });
@@ -175,7 +177,7 @@ export default function EditarPerfilScreen() {
       const rp = route?.params?.profile;
       setDraft({
         ...fromUser,
-        avatarEmoji: rp?.avatarEmoji ?? fromUser.avatarEmoji,
+        avatarIcon: rp?.avatarIcon ?? fromUser.avatarIcon,
         avatarImg: rp?.avatarImg ?? fromUser.avatarImg,
       });
     }, [route?.params?.profile]),
@@ -268,26 +270,44 @@ export default function EditarPerfilScreen() {
     navigation.goBack();
   }
 
+  async function pickImage() {
+    setPhotoSheet(false);
+    
+    let result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      const imageUri = result.assets[0].uri;
+      setDraft(prev => ({ ...prev, avatarImg: imageUri, avatarIcon: null }));
+      showToast('Galeria aberta, foto anexada localmente ✓', '#4ade80');
+    }
+  }
+
+  // Mantido apenas por compatibilidade caso use na web e queira usar o botão invisível.
   function handleFileUpload(e) {
     const file = e.target?.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      setDraft(prev => ({ ...prev, avatarImg: ev.target.result, avatarEmoji: null }));
+      setDraft(prev => ({ ...prev, avatarImg: ev.target.result, avatarIcon: null }));
       showToast('Foto atualizada ✓', '#4ade80');
     };
     reader.readAsDataURL(file);
     e.target.value = '';
   }
 
-  function useEmoji(emoji) {
-    setDraft(prev => ({ ...prev, avatarImg: null, avatarEmoji: emoji }));
+  function useIcon(iconName) {
+    setDraft(prev => ({ ...prev, avatarImg: null, avatarIcon: iconName }));
     setPhotoSheet(false);
     showToast('Avatar atualizado ✓', '#4ade80');
   }
 
   function removePhoto() {
-    setDraft(prev => ({ ...prev, avatarImg: null, avatarEmoji: '👤' }));
+    setDraft(prev => ({ ...prev, avatarImg: null, avatarIcon: 'person' }));
     setPhotoSheet(false);
     showToast('Foto removida', '#888');
   }
@@ -311,11 +331,11 @@ export default function EditarPerfilScreen() {
             <View style={styles.clientAvatar}>
               {draft.avatarImg
                 ? <Image source={{ uri: draft.avatarImg }} style={styles.avatarImage} />
-                : <Text style={styles.avatarEmoji}>{draft.avatarEmoji}</Text>
+                : <Ionicons name={draft.avatarIcon || 'person'} size={40} color={colors.text3} />
               }
             </View>
             <View style={styles.avatarBadge}>
-              <Text style={styles.avatarBadgeText}>✏️</Text>
+              <Ionicons name="pencil" size={12} color="#fff" />
             </View>
           </TouchableOpacity>
           <Text style={styles.avatarHint}>Toque para alterar a foto</Text>
@@ -388,7 +408,16 @@ export default function EditarPerfilScreen() {
               <TextInput
                 style={styles.input}
                 value={draft.birth}
-                onChangeText={v => setDraft(p => ({ ...p, birth: v }))}
+                onChangeText={v => {
+                  let d = v.replace(/\D/g, '').slice(0, 8);
+                  if (d.length >= 5) {
+                    d = `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+                  } else if (d.length >= 3) {
+                    d = `${d.slice(0, 2)}/${d.slice(2)}`;
+                  }
+                  setDraft(p => ({ ...p, birth: d }));
+                }}
+                keyboardType="number-pad"
                 placeholder="DD/MM/AAAA"
                 placeholderTextColor={colors.text3}
               />
@@ -514,20 +543,24 @@ export default function EditarPerfilScreen() {
             <TouchableOpacity
               style={styles.sheetOption}
               onPress={() => {
-                setPhotoSheet(false);
-                if (Platform.OS === 'web') fileRef.current?.click();
+                if (Platform.OS === 'web') {
+                  setPhotoSheet(false);
+                  fileRef.current?.click();
+                } else {
+                  pickImage();
+                }
               }}
             >
               <View style={[styles.sheetOptionIcon, { backgroundColor: 'rgba(59,130,246,0.12)' }]}>
-                <Text style={styles.sheetOptionEmoji}>📁</Text>
+                <Ionicons name="folder-outline" size={20} color="#3b82f6" />
               </View>
               <Text style={styles.sheetOptionLabel}>Escolher da galeria</Text>
             </TouchableOpacity>
 
             {AVATAR_OPTIONS.map(opt => (
-              <TouchableOpacity key={opt.emoji} style={styles.sheetOption} onPress={() => useEmoji(opt.emoji)}>
+              <TouchableOpacity key={opt.icon} style={styles.sheetOption} onPress={() => useIcon(opt.icon)}>
                 <View style={[styles.sheetOptionIcon, { backgroundColor: opt.bg }]}>
-                  <Text style={styles.sheetOptionEmoji}>{opt.emoji}</Text>
+                  <Ionicons name={opt.icon} size={20} color={opt.color} />
                 </View>
                 <Text style={styles.sheetOptionLabel}>{opt.label}</Text>
               </TouchableOpacity>
@@ -535,7 +568,7 @@ export default function EditarPerfilScreen() {
 
             <TouchableOpacity style={styles.sheetOption} onPress={removePhoto}>
               <View style={[styles.sheetOptionIcon, { backgroundColor: 'rgba(239,68,68,0.1)' }]}>
-                <Text style={styles.sheetOptionEmoji}>🗑️</Text>
+                <Ionicons name="trash-outline" size={20} color="#ef4444" />
               </View>
               <Text style={[styles.sheetOptionLabel, { color: '#f87171' }]}>Remover foto</Text>
             </TouchableOpacity>
