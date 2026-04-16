@@ -70,7 +70,7 @@ export default function BuscaScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalLoadingDetail, setModalLoadingDetail] = useState(false);
   const [filterModalVisible, setFilterModalVisible] = useState(false);
-  const [appliedBairro, setAppliedBairro] = useState(null);
+  const [appliedBairroId, setappliedBairroId] = useState(null);
   const [appliedStars, setAppliedStars] = useState(null);
 
   const { user } = useAuth();
@@ -146,15 +146,15 @@ export default function BuscaScreen() {
 
   const filteredArtists = useMemo(() => {
     return artists.filter((a) => {
-      const b = appliedBairro ? String(appliedBairro).trim().toLowerCase() : '';
+      const b = appliedBairroId ? String(appliedBairroId).trim().toLowerCase() : '';
       const matchBairro =
         !b ||
-        (a.bairro && String(a.bairro).toLowerCase().includes(b)) ||
+        (a.bairro_id && String(a.bairro_id).toLowerCase().includes(b)) ||
         (a.address && String(a.address).toLowerCase().includes(b));
       const matchStars = !appliedStars || (a.avg_rating || 0) >= appliedStars;
       return matchBairro && matchStars;
     });
-  }, [artists, appliedBairro, appliedStars]);
+  }, [artists, appliedBairroId, appliedStars]);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -183,7 +183,7 @@ export default function BuscaScreen() {
               ...prev,
               name: detail.name,
               styles: detail.styles,
-              bairro: detail.bairro ?? prev.bairro,
+              bairro_id: detail.bairro_id ?? prev.bairro_id,
               address: detail.address,
               avg_rating: detail.avg_rating,
               avatar: detail.avatar || prev.avatar,
@@ -220,7 +220,7 @@ export default function BuscaScreen() {
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>{'ENCONTRE\nSEU ARTISTA'}</Text>
               <Text style={styles.heroSub}>
-                Busque por nome, bio, endereço ou bairro (API). Use o filtro para bairro de Fortaleza e
+                Busque por nome, bio, endereço ou bairro_id (API). Use o filtro para bairro_id de Fortaleza e
                 nota mínima.
               </Text>
 
@@ -338,11 +338,11 @@ export default function BuscaScreen() {
         visible={filterModalVisible}
         onClose={() => setFilterModalVisible(false)}
         onApply={(f) => {
-          setAppliedBairro(f.bairro);
+          setappliedBairroId(f.bairro_id);
           setAppliedStars(f.estrelas);
         }}
         onReset={() => {
-          setAppliedBairro(null);
+          setappliedBairroId(null);
           setAppliedStars(null);
         }}
       />

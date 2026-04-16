@@ -10,6 +10,7 @@ import EditarPerfilScreen from '../screens/EditarPerfilScreen';
 import Contactsscreen from '../screens/Contactsscreen';
 import ReportScreen from '../screens/ReportScreen';
 import ReviewScreen from '../screens/ReviewScreen';
+import MyReviewsScreen from '../screens/MyReviewsScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -88,6 +89,7 @@ export default function PrivateNavigator() {
       <Stack.Screen name="Contatos"       component={Contactsscreen}       />
       <Stack.Screen name="Report"         component={ReportScreen}         />
       <Stack.Screen name="Review"         component={ReviewScreen}         />
+      <Stack.Screen name="MyReviews"      component={MyReviewsScreen}      />
       
     </Stack.Navigator>
   );
