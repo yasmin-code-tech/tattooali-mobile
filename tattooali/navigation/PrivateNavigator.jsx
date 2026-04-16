@@ -11,7 +11,7 @@ import Contactsscreen from '../screens/Contactsscreen';
 import ReportScreen from '../screens/ReportScreen';
 import ReviewScreen from '../screens/ReviewScreen';
 import MyReviewsScreen from '../screens/MyReviewsScreen';
-
+import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
 const Stack = createNativeStackNavigator();
 
 function getScreenTitle(routeName) {
@@ -90,7 +90,8 @@ export default function PrivateNavigator() {
       <Stack.Screen name="Report"         component={ReportScreen}         />
       <Stack.Screen name="Review"         component={ReviewScreen}         />
       <Stack.Screen name="MyReviews"      component={MyReviewsScreen}      />
-      
+      <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
+
     </Stack.Navigator>
   );
 }
