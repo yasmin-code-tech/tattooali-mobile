@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 
@@ -35,12 +36,12 @@ function formatCpfChip(cpf) {
 }
 
 const SETTINGS_ITEMS = [
-  { emoji: '📅', label: 'Minha Agenda',            bg: 'rgba(59,130,246,0.1)',  route: 'Agenda', danger: false },
-  { emoji: '💬', label: 'Mensagens',               bg: 'rgba(34,197,94,0.1)',   route: 'Chat',   danger: false },
-  { emoji: '⭐', label: 'Minhas Avaliações',        bg: 'rgba(245,158,11,0.1)', route: null,     danger: false },
-  { emoji: '🔔', label: 'Notificações',            bg: 'rgba(139,92,246,0.1)', route: null,     danger: false },
-  { emoji: '🔒', label: 'Privacidade e Segurança', bg: 'rgba(100,116,139,0.1)',route: null,     danger: false },
-  { emoji: '🚪', label: 'Sair',                    bg: 'rgba(239,68,68,0.1)',  route: null,  danger: true, isLogout:true  },
+  { icon: 'calendar-outline',      color: '#3b82f6', label: 'Minha Agenda',            bg: 'rgba(59,130,246,0.1)',  route: 'Agenda', danger: false },
+  { icon: 'chatbubble-outline',    color: '#22c55e', label: 'Mensagens',               bg: 'rgba(34,197,94,0.1)',   route: 'Chat',   danger: false },
+  { icon: 'star-outline',          color: '#f59e0b', label: 'Minhas Avaliações',       bg: 'rgba(245,158,11,0.1)',  route: null,     danger: false },
+  { icon: 'notifications-outline', color: '#8b5cf6', label: 'Notificações',            bg: 'rgba(139,92,246,0.1)',  route: null,     danger: false },
+  { icon: 'lock-closed-outline',   color: '#64748b', label: 'Privacidade e Segurança', bg: 'rgba(100,116,139,0.1)', route: null,     danger: false },
+  { icon: 'log-out-outline',       color: '#ef4444', label: 'Sair',                    bg: 'rgba(239,68,68,0.1)',   route: null,     danger: true, isLogout:true  },
 ];
 
 export default function PerfilScreen({ route }) {
@@ -88,7 +89,7 @@ export default function PerfilScreen({ route }) {
       cidade,
       estado,
       style: styleChip,
-      avatarEmoji: '👤',
+      avatarIcon: 'person',
       avatarImg: null,
     };
   }, [route?.params?.profile, user]);
@@ -101,22 +102,38 @@ export default function PerfilScreen({ route }) {
       >
         <View style={styles.clientHero}>
           <View style={styles.clientAvatar}>
-            <Text style={styles.clientAvatarEmoji}>{profile.avatarEmoji}</Text>
+            <Ionicons name={profile.avatarIcon} size={40} color={colors.text3} />
           </View>
           <Text style={styles.clientName}>{profile.name}</Text>
           <Text style={styles.clientEmail}>{profile.email}</Text>
           <View style={styles.infoChips}>
-            <View style={styles.infoChip}><Text style={styles.infoChipText}>📱 {profile.phone}</Text></View>
-            <View style={styles.infoChip}><Text style={styles.infoChipText}>🪪 CPF {profile.cpf}</Text></View>
-            <View style={styles.infoChip}><Text style={styles.infoChipText}>📍 {profile.cidade}, {profile.estado}</Text></View>
-            <View style={styles.infoChip}><Text style={styles.infoChipText}>🎂 {profile.birth}</Text></View>
-            <View style={styles.infoChip}><Text style={styles.infoChipText}>🎨 {profile.style}</Text></View>
+            <View style={styles.infoChip}>
+              <Ionicons name="call-outline" size={13} color="#22c55e" />
+              <Text style={styles.infoChipText}>{profile.phone}</Text>
+            </View>
+            <View style={styles.infoChip}>
+              <Ionicons name="id-card-outline" size={13} color="#3b82f6" />
+              <Text style={styles.infoChipText}>CPF {profile.cpf}</Text>
+            </View>
+            <View style={styles.infoChip}>
+              <Ionicons name="location-outline" size={13} color={colors.red} />
+              <Text style={styles.infoChipText}>{profile.cidade}, {profile.estado}</Text>
+            </View>
+            <View style={styles.infoChip}>
+              <MaterialCommunityIcons name="cake-variant-outline" size={13} color="#8B4513" />
+              <Text style={styles.infoChipText}>{profile.birth}</Text>
+            </View>
+            <View style={styles.infoChip}>
+              <Ionicons name="color-palette-outline" size={13} color="#f59e0b" />
+              <Text style={styles.infoChipText}>{profile.style}</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={styles.btnOutline}
             onPress={() => navigation.navigate('EditarPerfil', { profile })}
           >
-            <Text style={styles.btnOutlineText}>✏️ Editar perfil</Text>
+            <Ionicons name="pencil-outline" size={14} color={colors.text} style={{ marginRight: 6 }} />
+            <Text style={styles.btnOutlineText}>Editar perfil</Text>
           </TouchableOpacity>
         </View>
 
@@ -129,7 +146,7 @@ export default function PerfilScreen({ route }) {
               activeOpacity={0.75}
             >
               <View style={[styles.settingsIcon, { backgroundColor: item.bg }]}>
-                <Text style={styles.settingsIconEmoji}>{item.emoji}</Text>
+                <Ionicons name={item.icon} size={20} color={item.color} />
               </View>
               <Text style={[styles.settingsLabel, item.danger && styles.settingsLabelDanger]}>
                 {item.label}
@@ -209,19 +226,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   infoChipText: {
     fontSize: 11,
     color: colors.text2,
   },
   btnOutline: {
-    paddingHorizontal: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: 'transparent',
-    marginTop: 2,
+    marginTop: 6,
   },
   btnOutlineText: {
     fontSize: 13,

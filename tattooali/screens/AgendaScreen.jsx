@@ -314,7 +314,12 @@ export default function AgendaScreen() {
               ]}
               onPress={() => setActiveTab('agendadas')}
             >
-              <Text style={styles.agendaTabEmoji}>📅</Text>
+              <Ionicons
+                name="calendar"
+                size={18}
+                color="#60a5fa"
+                style={styles.agendaTabIcon}
+              />
               <Text
                 style={[styles.agendaTabText, activeTab === 'agendadas' && styles.agendaTabTextActive]}
                 numberOfLines={1}
