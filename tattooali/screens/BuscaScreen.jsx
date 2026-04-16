@@ -209,7 +209,7 @@ export default function BuscaScreen() {
     <View style={styles.root}>
       <FlatList
         data={loading ? [] : filteredArtists}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -309,9 +309,18 @@ export default function BuscaScreen() {
         onClose={handleCloseModal}
         loadingDetail={modalLoadingDetail}
         onReport={() => {
-          const name = modalArtist?.name;
+          if (!modalArtist) return;
+          
+          const idAlvo = modalArtist.user_id;
+          const nomeAlvo = modalArtist.name;
+
           handleCloseModal();
-          navigation.navigate('Report', { denunciado: name });
+          
+          navigation.navigate('Report', { 
+            denunciadoId: idAlvo,
+            denunciadoNome: nomeAlvo,
+            tipoDenunciado: 'user' // Buscando artistas sempre será 'user'
+          });
         }}
         onOpenChat={(a) => {
           handleCloseModal();
