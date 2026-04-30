@@ -101,7 +101,7 @@ export function ConversationsProvider({ children }) {
     if (!isAuthenticated) return undefined;
     const id = setInterval(() => {
       refreshThreads();
-    }, 30000);
+    }, 8000);
     return () => clearInterval(id);
   }, [isAuthenticated, refreshThreads]);
 

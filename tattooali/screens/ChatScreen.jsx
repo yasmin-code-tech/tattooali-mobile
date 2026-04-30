@@ -112,6 +112,35 @@ export default function ChatScreen() {
     return () => unsub();
   }, [conversationId, markAsRead]);
 
+  useEffect(() => {
+    let intervalId = null;
+    let cancelled = false;
+    (async () => {
+      if (!conversationId) return;
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (!token || cancelled) return;
+      intervalId = setInterval(async () => {
+        try {
+          const rows = await fetchMessages(token, conversationId);
+          if (cancelled) return;
+          setMessages((prev) => {
+            const byId = new Map(prev.map((m) => [m.id, m]));
+            for (const row of rows) byId.set(row.id, row);
+            return Array.from(byId.values()).sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+            );
+          });
+        } catch {
+          // fallback silencioso: tenta novamente no próximo ciclo
+        }
+      }, 5000);
+    })();
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [conversationId]);
+
   const displayName = peerName || `Usuário #${peerId}`;
   const showPhoto = isRemoteUrl(peerAvatar);
 
