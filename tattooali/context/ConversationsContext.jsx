@@ -5,10 +5,13 @@ import React, {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
 } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { fetchChatThreads, isSupabaseConfigured } from '../services/chatService';
+import { getJwtSub } from '../lib/jwtSub';
+import { createSupabaseAuthed } from '../lib/supabaseClient';
 
 const TOKEN_KEY = '@tattooali:token';
 
@@ -19,6 +22,27 @@ export function ConversationsProvider({ children }) {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const realtimeTimerRef = useRef(null);
+  const realtimeUnsubRef = useRef(null);
+
+  function inferUnreadCount(row, mySub) {
+    const direct =
+      Number.isFinite(Number(row?.unread_count))
+        ? Number(row.unread_count)
+        : Number.isFinite(Number(row?.unread))
+          ? Number(row.unread)
+          : null;
+    if (direct != null) return Math.max(0, direct);
+
+    const lastSender =
+      row?.last_sender_id ??
+      row?.last_message_sender_id ??
+      row?.last_sender ??
+      row?.sender_id ??
+      null;
+    if (!lastSender || !mySub) return 0;
+    return String(lastSender) === String(mySub) ? 0 : 1;
+  }
 
   const refreshThreads = useCallback(async () => {
     if (!isAuthenticated || !isSupabaseConfigured()) {
@@ -34,6 +58,7 @@ export function ConversationsProvider({ children }) {
         setConversations([]);
         return;
       }
+      const mySub = getJwtSub(token);
       const rows = await fetchChatThreads(token);
       const mapped = rows
         .filter((r) => r.peer_app_user_id != null)
@@ -45,11 +70,7 @@ export function ConversationsProvider({ children }) {
           isOnline: false,
           lastMessage: r.last_body || '',
           lastInteraction: r.last_at ? new Date(r.last_at) : new Date(0),
-          unreadCount: Number.isFinite(Number(r.unread_count))
-            ? Number(r.unread_count)
-            : Number.isFinite(Number(r.unread))
-              ? Number(r.unread)
-              : 0,
+          unreadCount: inferUnreadCount(r, mySub),
           conversationId: r.conversation_id,
         }));
       setConversations(mapped);
@@ -71,6 +92,39 @@ export function ConversationsProvider({ children }) {
       refreshThreads();
     }, 30000);
     return () => clearInterval(id);
+  }, [isAuthenticated, refreshThreads]);
+
+  useEffect(() => {
+    let alive = true;
+    async function setupRealtime() {
+      if (!isAuthenticated || !isSupabaseConfigured()) return;
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (!token || !alive) return;
+      const supabase = createSupabaseAuthed(token);
+      const channel = supabase
+        .channel('threads:badge')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+          () => {
+            if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+            realtimeTimerRef.current = setTimeout(() => {
+              refreshThreads();
+            }, 350);
+          },
+        )
+        .subscribe();
+      realtimeUnsubRef.current = () => {
+        supabase.removeChannel(channel);
+      };
+    }
+    setupRealtime();
+    return () => {
+      alive = false;
+      if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+      if (realtimeUnsubRef.current) realtimeUnsubRef.current();
+      realtimeUnsubRef.current = null;
+    };
   }, [isAuthenticated, refreshThreads]);
 
   const markAsRead = useCallback(() => {}, []);
