@@ -109,7 +109,7 @@ function SimpleSelect({ value, onChange, options }) {
 
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <TouchableOpacity style={styles.selectOverlay} activeOpacity={1} onPress={() => setOpen(false)}>
-          <View style={styles.selectSheet}>
+          <TouchableOpacity style={styles.selectSheet} activeOpacity={1}>
             {options.map(opt => (
               <TouchableOpacity
                 key={opt}
@@ -121,7 +121,7 @@ function SimpleSelect({ value, onChange, options }) {
                 </Text>
               </TouchableOpacity>
             ))}
-          </View>
+          </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
     </View>
