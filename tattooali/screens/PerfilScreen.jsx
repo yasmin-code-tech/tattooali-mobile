@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Modal,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -47,6 +48,7 @@ const SETTINGS_ITEMS = [
 
 export default function PerfilScreen({ route }) {
   const navigation = useNavigation();
+  const [selectedImage, setSelectedImage] = useState(null);
 
   const { logout, user, refreshUser } = useAuth();
 
@@ -102,13 +104,17 @@ export default function PerfilScreen({ route }) {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.clientHero}>
-          <View style={styles.clientAvatar}>
+          <TouchableOpacity 
+            style={styles.clientAvatar}
+            onPress={() => profile.avatarImg && setSelectedImage(profile.avatarImg)}
+            activeOpacity={profile.avatarImg ? 0.8 : 1}
+          >
             {profile.avatarImg ? (
               <Image source={{ uri: profile.avatarImg }} style={styles.clientAvatarImage} />
             ) : (
               <Ionicons name={profile.avatarIcon} size={40} color={colors.text3} />
             )}
-          </View>
+          </TouchableOpacity>
           <Text style={styles.clientName}>{profile.name}</Text>
           <Text style={styles.clientEmail}>{profile.email}</Text>
           <View style={styles.infoChips}>
@@ -161,6 +167,34 @@ export default function PerfilScreen({ route }) {
           ))}
         </View>
       </ScrollView>
+
+      {/* Full-screen Image Viewer Modal */}
+      <Modal
+        visible={!!selectedImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+      >
+        <TouchableOpacity 
+          style={styles.imageViewerContainer}
+          activeOpacity={1}
+          onPress={() => setSelectedImage(null)}
+        >
+          <TouchableOpacity 
+            style={styles.imageViewerCloseBtn} 
+            onPress={() => setSelectedImage(null)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image 
+              source={{ uri: selectedImage }} 
+              style={styles.imageViewerImage} 
+              resizeMode="contain" 
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
 
       <Navbar/>
     </View>
@@ -330,5 +364,22 @@ const styles = StyleSheet.create({
   },
   navLabelActive: {
     color: colors.red,
+  },
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  imageViewerImage: {
+    width: '100%',
+    height: '100%',
   },
 });

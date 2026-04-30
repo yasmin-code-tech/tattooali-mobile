@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Modal,
   View,
@@ -30,12 +30,12 @@ const renderStars = (rating, size) => {
   );
 };
 
-function GalleryItem({ uri, emoji }) {
+function GalleryItem({ uri, emoji, onPress }) {
   if (uri && isRemoteUrl(uri)) {
     return (
-      <View style={styles.galleryItem}>
+      <TouchableOpacity style={styles.galleryItem} onPress={() => onPress(uri)} activeOpacity={0.85}>
         <Image source={{ uri }} style={styles.galleryImage} resizeMode="cover" />
-      </View>
+      </TouchableOpacity>
     );
   }
   return (
@@ -237,6 +237,23 @@ const styles = StyleSheet.create({
   starsEmpty: {
     color: colors.border,
   },
+  imageViewerContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageViewerCloseBtn: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 8,
+  },
+  imageViewerImage: {
+    width: '100%',
+    height: '100%',
+  },
 });
 
 export function ArtistModal({
@@ -248,6 +265,8 @@ export function ArtistModal({
   onOpenChat,
 }) {
   const navigation = useNavigation();
+  const [selectedImage, setSelectedImage] = useState(null);
+
   if (!artist) return null;
 
   const showPhoto = isRemoteUrl(artist.avatar);
@@ -271,13 +290,17 @@ export function ArtistModal({
 
             <View style={styles.modalHeader}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 12 }}>
-                <View style={styles.modalAvatar}>
+                <TouchableOpacity 
+                  style={styles.modalAvatar}
+                  onPress={() => showPhoto && setSelectedImage(artist.avatar)}
+                  activeOpacity={showPhoto ? 0.8 : 1}
+                >
                   {showPhoto ? (
                     <Image source={{ uri: artist.avatar }} style={styles.modalAvatarPhoto} resizeMode="cover" />
                   ) : (
                     <Text style={styles.modalAvatarEmoji}>{initial}</Text>
                   )}
-                </View>
+                </TouchableOpacity>
 
                 <View style={{ flex: 1 }}>
                   <Text style={styles.modalName}>{artist.name}</Text>
@@ -329,7 +352,7 @@ export function ArtistModal({
               ) : (
                 galleryItems.map((item, i) =>
                   isRemoteUrl(item) ? (
-                    <GalleryItem key={i} uri={item} />
+                    <GalleryItem key={i} uri={item} onPress={setSelectedImage} />
                   ) : (
                     <GalleryItem key={i} emoji={item} />
                   ),
@@ -399,6 +422,34 @@ export function ArtistModal({
           </ScrollView>
         </View>
       </View>
+
+      {/* Full-screen Image Viewer Modal */}
+      <Modal
+        visible={!!selectedImage}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedImage(null)}
+      >
+        <TouchableOpacity 
+          style={styles.imageViewerContainer}
+          activeOpacity={1}
+          onPress={() => setSelectedImage(null)}
+        >
+          <TouchableOpacity 
+            style={styles.imageViewerCloseBtn} 
+            onPress={() => setSelectedImage(null)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <Image 
+              source={{ uri: selectedImage }} 
+              style={styles.imageViewerImage} 
+              resizeMode="contain" 
+            />
+          )}
+        </TouchableOpacity>
+      </Modal>
     </Modal>
   );
 }
