@@ -26,6 +26,11 @@ export function ConversationsProvider({ children }) {
   const realtimeTimerRef = useRef(null);
   const realtimeUnsubRef = useRef(null);
   const mySubRef = useRef(null);
+  const localUnreadRef = useRef({});
+
+  useEffect(() => {
+    localUnreadRef.current = localUnreadByConversation;
+  }, [localUnreadByConversation]);
 
   function inferUnreadCount(row, mySub) {
     const direct =
@@ -75,7 +80,7 @@ export function ConversationsProvider({ children }) {
           lastInteraction: r.last_at ? new Date(r.last_at) : new Date(0),
           unreadCount: Math.max(
             inferUnreadCount(r, mySub),
-            localUnreadByConversation[r.conversation_id] || 0,
+            localUnreadRef.current[r.conversation_id] || 0,
           ),
           conversationId: r.conversation_id,
         }));
@@ -86,7 +91,7 @@ export function ConversationsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, localUnreadByConversation]);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     refreshThreads();
