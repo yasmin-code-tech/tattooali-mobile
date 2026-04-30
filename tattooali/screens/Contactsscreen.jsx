@@ -70,12 +70,13 @@ const Separator = () => <View style={styles.separator} />;
 // ─── CONTACTS SCREEN ──────────────────────────────────────────
 export default function ContactsScreen({ navigation }) {
   const { user } = useAuth();
-  const { conversations, refreshThreads, error, isSupabaseReady, loading } = useConversations();
+  const { conversations, refreshThreads, markAsRead, error, isSupabaseReady, loading } = useConversations();
 
   useFocusEffect(
     useCallback(() => {
+      markAsRead();
       refreshThreads();
-    }, [refreshThreads]),
+    }, [markAsRead, refreshThreads]),
   );
 
   // Ordena por mais recente

@@ -20,10 +20,12 @@ const ConversationsContext = createContext(null);
 export function ConversationsProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const [conversations, setConversations] = useState([]);
+  const [localUnreadByConversation, setLocalUnreadByConversation] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const realtimeTimerRef = useRef(null);
   const realtimeUnsubRef = useRef(null);
+  const mySubRef = useRef(null);
 
   function inferUnreadCount(row, mySub) {
     const direct =
@@ -59,6 +61,7 @@ export function ConversationsProvider({ children }) {
         return;
       }
       const mySub = getJwtSub(token);
+      mySubRef.current = mySub;
       const rows = await fetchChatThreads(token);
       const mapped = rows
         .filter((r) => r.peer_app_user_id != null)
@@ -70,7 +73,10 @@ export function ConversationsProvider({ children }) {
           isOnline: false,
           lastMessage: r.last_body || '',
           lastInteraction: r.last_at ? new Date(r.last_at) : new Date(0),
-          unreadCount: inferUnreadCount(r, mySub),
+          unreadCount: Math.max(
+            inferUnreadCount(r, mySub),
+            localUnreadByConversation[r.conversation_id] || 0,
+          ),
           conversationId: r.conversation_id,
         }));
       setConversations(mapped);
@@ -80,7 +86,7 @@ export function ConversationsProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, localUnreadByConversation]);
 
   useEffect(() => {
     refreshThreads();
@@ -106,7 +112,21 @@ export function ConversationsProvider({ children }) {
         .on(
           'postgres_changes',
           { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-          () => {
+          (payload) => {
+            const row = payload?.new || {};
+            const conversationId = row.conversation_id;
+            const senderId = row.sender_id;
+            if (
+              conversationId != null &&
+              senderId &&
+              mySubRef.current &&
+              String(senderId) !== String(mySubRef.current)
+            ) {
+              setLocalUnreadByConversation((prev) => ({
+                ...prev,
+                [conversationId]: (prev[conversationId] || 0) + 1,
+              }));
+            }
             if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
             realtimeTimerRef.current = setTimeout(() => {
               refreshThreads();
@@ -127,7 +147,26 @@ export function ConversationsProvider({ children }) {
     };
   }, [isAuthenticated, refreshThreads]);
 
-  const markAsRead = useCallback(() => {}, []);
+  const markAsRead = useCallback((conversationId) => {
+    if (!conversationId) {
+      setLocalUnreadByConversation({});
+      setConversations((prev) => prev.map((c) => ({ ...c, unreadCount: 0 })));
+      return;
+    }
+    setLocalUnreadByConversation((prev) => {
+      if (!(conversationId in prev)) return prev;
+      const next = { ...prev };
+      delete next[conversationId];
+      return next;
+    });
+    setConversations((prev) =>
+      prev.map((c) =>
+        String(c.conversationId) === String(conversationId)
+          ? { ...c, unreadCount: 0 }
+          : c,
+      ),
+    );
+  }, []);
   const totalUnreadCount = useMemo(
     () => conversations.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0),
     [conversations],
