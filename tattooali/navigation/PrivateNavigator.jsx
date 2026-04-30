@@ -1,6 +1,8 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Alert, TouchableOpacity, Text, View } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { useNotifications } from '../context/NotificationsContext';
 
 import BuscaScreen          from '../screens/BuscaScreen';
 import AgendaScreen from '../screens/AgendaScreen';
@@ -12,6 +14,7 @@ import ReportScreen from '../screens/ReportScreen';
 import ReviewScreen from '../screens/ReviewScreen';
 import MyReviewsScreen from '../screens/MyReviewsScreen';
 import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
 const Stack = createNativeStackNavigator();
 
 function getScreenTitle(routeName) {
@@ -24,10 +27,12 @@ function getScreenTitle(routeName) {
 }
 
 export default function PrivateNavigator() {
+  const { unreadCount } = useNotifications();
+
   return (
     <Stack.Navigator
       initialRouteName="Busca"
-      screenOptions={({ route }) => ({
+      screenOptions={({ route, navigation }) => ({
         headerShown: true,
         headerStyle: { backgroundColor: '#0a0a0a' },
         headerShadowVisible: false,
@@ -42,31 +47,33 @@ export default function PrivateNavigator() {
         headerTitle: getScreenTitle(route.name),
         headerRight: () => (
           <TouchableOpacity
-            onPress={() => Alert.alert('Notificações', 'Central de notificações em breve.')}
+            onPress={() => navigation.navigate('Notifications')}
             style={{
               width: 36,
               height: 36,
               borderRadius: 18,
               borderWidth: 1,
-              borderColor: '#2a2a2a',
-              backgroundColor: '#141414',
+              borderColor: '#3a3a3a',
+              backgroundColor: 'transparent',
               alignItems: 'center',
               justifyContent: 'center',
             }}
             activeOpacity={0.8}
           >
-            <Text style={{ fontSize: 17 }}>🔔</Text>
-            <View
-              style={{
-                position: 'absolute',
-                right: 8,
-                top: 8,
-                width: 8,
-                height: 8,
-                borderRadius: 4,
-                backgroundColor: '#e53030',
-              }}
-            />
+            <Ionicons name="notifications-outline" size={19} color="#f0f0f0" />
+            {unreadCount > 0 ? (
+              <View
+                style={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 8,
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: '#e53030',
+                }}
+              />
+            ) : null}
           </TouchableOpacity>
         ),
         contentStyle: { backgroundColor: '#0a0a0a' },
@@ -91,6 +98,7 @@ export default function PrivateNavigator() {
       <Stack.Screen name="Review"         component={ReviewScreen}         />
       <Stack.Screen name="MyReviews"      component={MyReviewsScreen}      />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
 
     </Stack.Navigator>
   );
