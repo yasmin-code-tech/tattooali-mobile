@@ -84,7 +84,31 @@ export function ConversationsProvider({ children }) {
           ),
           conversationId: r.conversation_id,
         }));
-      setConversations(mapped);
+      setConversations((prev) => {
+        const prevByConversation = new Map(
+          prev.map((item) => [String(item.conversationId), item]),
+        );
+        return mapped.map((item) => {
+          const prevItem = prevByConversation.get(String(item.conversationId));
+          if (!prevItem) return item;
+          const nextTs = new Date(item.lastInteraction).getTime();
+          const prevTs = new Date(prevItem.lastInteraction).getTime();
+          const hasNewActivity = Number.isFinite(nextTs) && Number.isFinite(prevTs) && nextTs > prevTs;
+          const inferredUnread = Number(item.unreadCount) || 0;
+
+          // Fallback: se o backend não manda unread_count e houve atividade nova,
+          // considera ao menos +1 não lida até a pessoa abrir Contatos/Chat.
+          const fallbackUnread =
+            inferredUnread === 0 && hasNewActivity
+              ? (Number(prevItem.unreadCount) || 0) + 1
+              : 0;
+
+          return {
+            ...item,
+            unreadCount: Math.max(inferredUnread, fallbackUnread),
+          };
+        });
+      });
     } catch (e) {
       setError(e?.message || 'Falha ao carregar conversas');
       setConversations([]);
