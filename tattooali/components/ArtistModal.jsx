@@ -276,8 +276,8 @@ export function ArtistModal({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
+      <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={styles.modalSheet} activeOpacity={1}>
           <View style={styles.modalHandle} />
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>
@@ -420,8 +420,8 @@ export function ArtistModal({
               <Text style={styles.modalBtnOutlineText}>Fechar</Text>
             </TouchableOpacity>
           </ScrollView>
-        </View>
-      </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
 
       {/* Full-screen Image Viewer Modal */}
       <Modal

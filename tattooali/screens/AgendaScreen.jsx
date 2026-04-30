@@ -581,7 +581,13 @@ export default function AgendaScreen() {
               bounces={false}
               contentContainerStyle={styles.modalScrollContent}
             >
-              <View style={styles.modalSheet}>
+              <TouchableOpacity 
+                activeOpacity={1} 
+                style={{ flexGrow: 1, justifyContent: 'flex-end' }} 
+                onPress={closeReviewModal}
+              >
+                <TouchableOpacity activeOpacity={1}>
+                  <View style={styles.modalSheet}>
                 <View style={styles.modalHandle} />
                 <Text style={styles.modalTitle}>AVALIAR SESSÃO</Text>
                 <Text style={styles.modalSubtitle}>
@@ -632,6 +638,8 @@ export default function AgendaScreen() {
                   <Text style={styles.btnOutlineText}>Cancelar</Text>
                 </TouchableOpacity>
               </View>
+                </TouchableOpacity>
+              </TouchableOpacity>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
