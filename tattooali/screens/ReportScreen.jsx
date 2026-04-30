@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
@@ -32,6 +33,7 @@ const DESC_MAX = 500;
 
 export default function ReportScreen() {
   const navigation = useNavigation();
+  const { user } = useAuth(); // Importa useAuth para obter o ID do usuário logado
   const route = useRoute();
 
   /**
@@ -67,13 +69,18 @@ export default function ReportScreen() {
     setError('');
 
     try {
+      if (!user?.user_id) {
+        Alert.alert("Erro de autenticação", "Usuário não logado. Por favor, faça login novamente.");
+        setLoading(false);
+        return;
+      }
       const data = await api.post('/api/reports', {
         descricao: descricao.trim(),
         denunciadoId: denunciadoId,
         tipoDenunciado: tipoDenunciado, // 'user' ou 'client'
+        denuncianteId: user.user_id, // Adiciona o ID do usuário que está fazendo a denúncia
         denunciadoNome: denunciadoNome,
       });
-
       if (data?.success) {
         setSent(true);
         setTimeout(() => navigation.goBack(), 2000);
