@@ -15,9 +15,7 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-
-const API_URL = process.env.EXPO_PUBLIC_API_URL;
+import { api } from '../lib/api';
 
 const C = {
   bg:          '#0c0c0e',
@@ -69,25 +67,14 @@ export default function ReportScreen() {
     setError('');
 
     try {
-      const token = await AsyncStorage.getItem('@TattooAli:token');
-
-      const response = await fetch(`${API_URL}/reports`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          descricao: descricao.trim(),
-          denunciadoId: denunciadoId,
-          tipoDenunciado: tipoDenunciado, // 'user' ou 'client'
-          denunciadoNome: denunciadoNome
-        }),
+      const data = await api.post('/api/reports', {
+        descricao: descricao.trim(),
+        denunciadoId: denunciadoId,
+        tipoDenunciado: tipoDenunciado, // 'user' ou 'client'
+        denunciadoNome: denunciadoNome,
       });
 
-      const data = await response.json();
-
-      if (response.ok && data.success) {
+      if (data?.success) {
         setSent(true);
         setTimeout(() => navigation.goBack(), 2000);
       } else {
