@@ -311,15 +311,36 @@ export default function EditarPerfilScreen() {
   }
 
   // Mantido apenas por compatibilidade caso use na web e queira usar o botão invisível.
-  function handleFileUpload(e) {
+  async function handleFileUpload(e) {
     const file = e.target?.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = ev => {
-      setDraft(prev => ({ ...prev, avatarImg: ev.target.result, avatarIcon: null }));
-      showToast('Foto atualizada ✓', '#4ade80');
+    reader.onload = (ev) => {
+      setDraft((prev) => ({ ...prev, avatarImg: ev.target.result, avatarIcon: null }));
     };
     reader.readAsDataURL(file);
+
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const data = await api.post('/api/image/perfil/', formData);
+      const remoteUrl = data?.image || null;
+      if (remoteUrl) {
+        setDraft((prev) => ({ ...prev, avatarImg: remoteUrl, avatarIcon: null }));
+      }
+      await refreshUser();
+      showToast('Foto de perfil atualizada ✓', '#4ade80');
+    } catch (err) {
+      const msg =
+        err?.data?.message ||
+        err?.message ||
+        'Nao foi possivel enviar a foto.';
+      showToast(String(msg), '#f87171');
+    } finally {
+      setUploadingPhoto(false);
+    }
+
     e.target.value = '';
   }
 
