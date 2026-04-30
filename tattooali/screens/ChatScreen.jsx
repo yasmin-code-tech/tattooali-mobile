@@ -144,13 +144,34 @@ export default function ChatScreen() {
   const displayName = peerName || `Usuário #${peerId}`;
   const showPhoto = isRemoteUrl(peerAvatar);
 
+  // Função para verificar se a mensagem foi visualizada (baseado em heurística: se o contato mandou mensagem depois, ele viu)
+  const isMessageRead = (msg) => {
+    const msgTime = new Date(msg.created_at).getTime();
+    const hasReplyAfter = messages.some(
+      (m) => String(m.sender_id) !== String(mySubRef.current) && new Date(m.created_at).getTime() > msgTime
+    );
+    return hasReplyAfter;
+  };
+
   const renderMessage = ({ item }) => {
-    const mine = mySubRef.current && item.sender_id === mySubRef.current;
+    const mine = mySubRef.current && String(item.sender_id) === String(mySubRef.current);
+    const read = mine ? isMessageRead(item) : false;
+
     return (
       <View style={[styles.messageWrapper, mine ? styles.messageWrapperUser : styles.messageWrapperContact]}>
         <View style={[styles.bubble, mine ? styles.bubbleUser : styles.bubbleContact]}>
           <Text style={styles.messageText}>{item.body}</Text>
-          <Text style={styles.timeText}>{formatBubbleTime(item.created_at)}</Text>
+          <View style={styles.metaContainer}>
+            <Text style={styles.timeText}>{formatBubbleTime(item.created_at)}</Text>
+            {mine && (
+              <Ionicons
+                name={read ? "checkmark-done-outline" : "checkmark-outline"}
+                size={14}
+                color={read ? "#4db8ff" : "rgba(255, 255, 255, 0.5)"}
+                style={styles.statusIcon}
+              />
+            )}
+          </View>
         </View>
       </View>
     );
@@ -348,11 +369,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
+  metaContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    marginTop: 4,
+    gap: 4,
+  },
   timeText: {
     color: 'rgba(255, 255, 255, 0.5)',
     fontSize: 10,
-    alignSelf: 'flex-end',
-    marginTop: 4,
+  },
+  statusIcon: {
+    marginLeft: 2,
   },
   inputContainer: {
     flexDirection: 'row',
@@ -366,13 +395,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#2a2a2a',
     color: '#f0f0f0',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
-    minHeight: 40,
-    maxHeight: 100,
+    borderRadius: 25,
+    paddingHorizontal: 18,
+    paddingTop: 12,
+    paddingBottom: 12,
+    minHeight: 50,
+    maxHeight: 120,
     marginRight: 12,
+    fontSize: 16,
   },
   sendButton: {
     width: 44,

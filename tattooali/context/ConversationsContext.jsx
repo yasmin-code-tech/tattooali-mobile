@@ -91,6 +91,7 @@ export function ConversationsProvider({ children }) {
             avatar: '💬',
             isOnline: false,
             lastMessage: r.last_body || '',
+            isLastMessageMine: String(r.last_sender_id ?? r.last_message_sender_id ?? r.last_sender ?? r.sender_id) === String(mySub),
             lastInteraction: lastInteractionDate,
             unreadCount: Math.max(inferredUnread, localUnread, unseenByTime),
             conversationId: r.conversation_id,

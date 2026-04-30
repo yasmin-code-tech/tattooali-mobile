@@ -15,6 +15,7 @@ import { formatListTime } from '../utils/timeUtils';
 import { useConversations } from '../context/ConversationsContext';
 import { useAuth } from '../context/AuthContext';
 import AppLayout from '../components/Navbar';
+import { Ionicons } from '@expo/vector-icons';
 
 
 // ─── CONTACT ITEM ─────────────────────────────────────────────
@@ -38,13 +39,23 @@ const ContactItem = React.memo(({ item, onPress }) => {
         <Text style={[styles.contactName, hasUnread && styles.contactNameUnread]}>
           {item.name}
         </Text>
-        <Text
-          style={[styles.lastMessage, hasUnread && styles.lastMessageUnread]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {item.lastMessage}
-        </Text>
+        <View style={styles.lastMessageRow}>
+          {item.isLastMessageMine && (
+            <Ionicons
+              name="checkmark-done-outline"
+              size={14}
+              color={C.smoke}
+              style={{ marginRight: 4 }}
+            />
+          )}
+          <Text
+            style={[styles.lastMessage, hasUnread && styles.lastMessageUnread, { flex: 1 }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {item.lastMessage}
+          </Text>
+        </View>
       </View>
 
       {/* Meta (time + badge) */}
@@ -256,6 +267,10 @@ const styles = StyleSheet.create({
   },
   contactNameUnread: {
     color: C.white,
+  },
+  lastMessageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   lastMessage: {
     color: C.smoke,
