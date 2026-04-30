@@ -26,6 +26,7 @@ import {
   subscribeToMessages,
   isSupabaseConfigured,
 } from '../services/chatService';
+import { useConversations } from '../context/ConversationsContext';
 
 const TOKEN_KEY = '@tattooali:token';
 
@@ -45,6 +46,7 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const flatListRef = useRef(null);
+  const { markAsRead } = useConversations();
 
   const mySubRef = useRef(null);
 
@@ -80,6 +82,7 @@ export default function ChatScreen() {
       const conv = await getOrCreateConversationId(token, peerAuth);
       if (!conv) throw new Error('Não foi possível abrir a conversa.');
       setConversationId(conv);
+      markAsRead(conv);
       const rows = await fetchMessages(token, conv);
       setMessages(rows);
     } catch (e) {
@@ -87,7 +90,7 @@ export default function ChatScreen() {
     } finally {
       setLoading(false);
     }
-  }, [peerId]);
+  }, [peerId, markAsRead]);
 
   useEffect(() => {
     load();
@@ -100,10 +103,42 @@ export default function ChatScreen() {
       if (!token || !conversationId) return;
       unsub = subscribeToMessages(token, conversationId, (row) => {
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+        if (mySubRef.current && row?.sender_id && String(row.sender_id) !== String(mySubRef.current)) {
+          markAsRead(conversationId);
+        }
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
       });
     })();
     return () => unsub();
+  }, [conversationId, markAsRead]);
+
+  useEffect(() => {
+    let intervalId = null;
+    let cancelled = false;
+    (async () => {
+      if (!conversationId) return;
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (!token || cancelled) return;
+      intervalId = setInterval(async () => {
+        try {
+          const rows = await fetchMessages(token, conversationId);
+          if (cancelled) return;
+          setMessages((prev) => {
+            const byId = new Map(prev.map((m) => [m.id, m]));
+            for (const row of rows) byId.set(row.id, row);
+            return Array.from(byId.values()).sort(
+              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
+            );
+          });
+        } catch {
+          // fallback silencioso: tenta novamente no próximo ciclo
+        }
+      }, 5000);
+    })();
+    return () => {
+      cancelled = true;
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [conversationId]);
 
   const displayName = peerName || `Usuário #${peerId}`;
