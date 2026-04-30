@@ -45,7 +45,11 @@ export function ConversationsProvider({ children }) {
           isOnline: false,
           lastMessage: r.last_body || '',
           lastInteraction: r.last_at ? new Date(r.last_at) : new Date(0),
-          unreadCount: 0,
+          unreadCount: Number.isFinite(Number(r.unread_count))
+            ? Number(r.unread_count)
+            : Number.isFinite(Number(r.unread))
+              ? Number(r.unread)
+              : 0,
           conversationId: r.conversation_id,
         }));
       setConversations(mapped);
@@ -61,18 +65,31 @@ export function ConversationsProvider({ children }) {
     refreshThreads();
   }, [refreshThreads]);
 
+  useEffect(() => {
+    if (!isAuthenticated) return undefined;
+    const id = setInterval(() => {
+      refreshThreads();
+    }, 30000);
+    return () => clearInterval(id);
+  }, [isAuthenticated, refreshThreads]);
+
   const markAsRead = useCallback(() => {}, []);
+  const totalUnreadCount = useMemo(
+    () => conversations.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0),
+    [conversations],
+  );
 
   const value = useMemo(
     () => ({
       conversations,
+      totalUnreadCount,
       loading,
       error,
       refreshThreads,
       markAsRead,
       isSupabaseReady: isSupabaseConfigured(),
     }),
-    [conversations, loading, error, refreshThreads, markAsRead],
+    [conversations, totalUnreadCount, loading, error, refreshThreads, markAsRead],
   );
 
   return (

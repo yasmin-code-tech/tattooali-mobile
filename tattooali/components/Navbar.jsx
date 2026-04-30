@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+import { useConversations } from '../context/ConversationsContext';
 
 const NAV_ITEMS = [
   { label: 'BUSCAR', icon: 'search',          iconActive: 'search',           route: 'Busca'        },
@@ -16,6 +17,7 @@ export default function AppLayout({ children }) {
   const navigation = useNavigation();
   const route      = useRoute();
   const { logout } = useAuth();
+  const { totalUnreadCount } = useConversations();
 
   function handleLogout() {
     logout();
@@ -40,6 +42,9 @@ export default function AppLayout({ children }) {
                 size={22}
                 color={active ? '#e53030' : '#555'}
               />
+              {item.route === 'Contatos' && totalUnreadCount > 0 ? (
+                <View style={styles.chatUnreadDot} />
+              ) : null}
               <Text style={[styles.navLabel, active && styles.navLabelActive]}>
                 {item.label}
               </Text>
@@ -90,6 +95,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
+    position: 'relative',
+  },
+  chatUnreadDot: {
+    position: 'absolute',
+    top: 7,
+    right: 14,
+    width: 9,
+    height: 9,
+    borderRadius: 4.5,
+    backgroundColor: '#e53030',
+    borderWidth: 1,
+    borderColor: '#141414',
   },
   navItemActive: {},
   navLabel: {
