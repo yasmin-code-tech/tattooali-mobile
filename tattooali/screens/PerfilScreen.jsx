@@ -39,7 +39,7 @@ const SETTINGS_ITEMS = [
   { icon: 'calendar-outline',      color: '#3b82f6', label: 'Minha Agenda',            bg: 'rgba(59,130,246,0.1)',  route: 'Agenda', danger: false },
   { icon: 'chatbubble-outline',    color: '#22c55e', label: 'Mensagens',               bg: 'rgba(34,197,94,0.1)',   route: 'Chat',   danger: false },
   { icon: 'star-outline',          color: '#f59e0b', label: 'Minhas Avaliações',       bg: 'rgba(245,158,11,0.1)',  route: 'MyReviews',     danger: false },
-  { icon: 'notifications-outline', color: '#8b5cf6', label: 'Notificações',            bg: 'rgba(139,92,246,0.1)',  route: null,     danger: false },
+  { icon: 'notifications-outline', color: '#8b5cf6', label: 'Notificações',            bg: 'rgba(139,92,246,0.1)',  route: 'Notifications',     danger: false },
   { icon: 'lock-closed-outline',   color: '#64748b', label: 'Privacidade e Segurança', bg: 'rgba(100,116,139,0.1)', route: 'PrivacySecurity',     danger: false },
   { icon: 'log-out-outline',       color: '#ef4444', label: 'Sair',                    bg: 'rgba(239,68,68,0.1)',   route: null,     danger: true, isLogout:true  },
 ];
