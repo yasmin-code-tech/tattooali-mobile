@@ -2,6 +2,7 @@ import React, { useCallback, useMemo } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
@@ -90,7 +91,7 @@ export default function PerfilScreen({ route }) {
       estado,
       style: styleChip,
       avatarIcon: 'person',
-      avatarImg: null,
+      avatarImg: user?.foto || null,
     };
   }, [route?.params?.profile, user]);
 
@@ -102,7 +103,11 @@ export default function PerfilScreen({ route }) {
       >
         <View style={styles.clientHero}>
           <View style={styles.clientAvatar}>
-            <Ionicons name={profile.avatarIcon} size={40} color={colors.text3} />
+            {profile.avatarImg ? (
+              <Image source={{ uri: profile.avatarImg }} style={styles.clientAvatarImage} />
+            ) : (
+              <Ionicons name={profile.avatarIcon} size={40} color={colors.text3} />
+            )}
           </View>
           <Text style={styles.clientName}>{profile.name}</Text>
           <Text style={styles.clientEmail}>{profile.email}</Text>
@@ -198,6 +203,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  clientAvatarImage: {
+    width: '100%',
+    height: '100%',
   },
   clientAvatarEmoji: {
     fontSize: 40,
