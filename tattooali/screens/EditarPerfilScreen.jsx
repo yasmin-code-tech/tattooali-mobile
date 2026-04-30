@@ -59,7 +59,7 @@ function draftFromUser(u) {
     endereco: u.endereco && String(u.endereco).trim() ? String(u.endereco).trim() : '',
     observacoes: u.bio && String(u.bio).trim() ? String(u.bio).trim() : '',
     style: u.estilo_favorito && u.estilo_favorito.trim() ? u.estilo_favorito : 'Realismo',
-    avatarImg: null,
+    avatarImg: u.foto || null,
     avatarIcon: 'person',
   };
 }
@@ -169,6 +169,7 @@ export default function EditarPerfilScreen() {
   const [photoSheet, setPhotoSheet] = useState(false);
   const [toast, setToast] = useState({ visible: false, msg: '', color: '#4ade80' });
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -281,9 +282,31 @@ export default function EditarPerfilScreen() {
     });
 
     if (!result.canceled) {
-      const imageUri = result.assets[0].uri;
+      const imageAsset = result.assets[0];
+      const imageUri = imageAsset.uri;
       setDraft(prev => ({ ...prev, avatarImg: imageUri, avatarIcon: null }));
-      showToast('Galeria aberta, foto anexada localmente ✓', '#4ade80');
+      setUploadingPhoto(true);
+      try {
+        const formData = new FormData();
+        formData.append('image', {
+          uri: imageUri,
+          name: imageAsset.fileName || `perfil-${Date.now()}.jpg`,
+          type: imageAsset.mimeType || 'image/jpeg',
+        });
+        const data = await api.post('/api/image/perfil/', formData);
+        const remoteUrl = data?.image || imageUri;
+        setDraft(prev => ({ ...prev, avatarImg: remoteUrl, avatarIcon: null }));
+        await refreshUser();
+        showToast('Foto de perfil atualizada ✓', '#4ade80');
+      } catch (e) {
+        const msg =
+          e?.data?.message ||
+          e?.message ||
+          'Nao foi possivel enviar a foto.';
+        showToast(String(msg), '#f87171');
+      } finally {
+        setUploadingPhoto(false);
+      }
     }
   }
 
@@ -503,9 +526,9 @@ export default function EditarPerfilScreen() {
               style={[styles.btn, styles.btnPrimary, saving && styles.btnDisabled]}
               onPress={handleSave}
               activeOpacity={0.85}
-              disabled={saving}
+            disabled={saving || uploadingPhoto}
             >
-              {saving ? (
+              {saving || uploadingPhoto ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <Text style={styles.btnPrimaryText}>✓ Salvar</Text>
@@ -515,7 +538,7 @@ export default function EditarPerfilScreen() {
               style={[styles.btn, styles.btnOutline]}
               onPress={handleCancel}
               activeOpacity={0.85}
-              disabled={saving}
+              disabled={saving || uploadingPhoto}
             >
               <Text style={styles.btnOutlineText}>✕ Cancelar</Text>
             </TouchableOpacity>
