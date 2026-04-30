@@ -28,10 +28,15 @@ export function ConversationsProvider({ children }) {
   const mySubRef = useRef(null);
   const localUnreadRef = useRef({});
   const seenAtByConversationRef = useRef({});
+  const conversationsRef = useRef([]);
 
   useEffect(() => {
     localUnreadRef.current = localUnreadByConversation;
   }, [localUnreadByConversation]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   function inferUnreadCount(row, mySub) {
     const direct =
@@ -170,10 +175,11 @@ export function ConversationsProvider({ children }) {
   }, [isAuthenticated, refreshThreads]);
 
   const markAsRead = useCallback((conversationId) => {
+    const currentConversations = conversationsRef.current;
     if (!conversationId) {
       const now = Date.now();
       const seenNext = { ...seenAtByConversationRef.current };
-      for (const c of conversations) {
+      for (const c of currentConversations) {
         const ts = new Date(c.lastInteraction).getTime();
         seenNext[String(c.conversationId)] = Number.isFinite(ts) ? ts : now;
       }
@@ -183,7 +189,7 @@ export function ConversationsProvider({ children }) {
       return;
     }
     const key = String(conversationId);
-    const current = conversations.find((c) => String(c.conversationId) === key);
+    const current = currentConversations.find((c) => String(c.conversationId) === key);
     const seenTs = current ? new Date(current.lastInteraction).getTime() : Date.now();
     seenAtByConversationRef.current = {
       ...seenAtByConversationRef.current,
@@ -202,7 +208,7 @@ export function ConversationsProvider({ children }) {
           : c,
       ),
     );
-  }, [conversations]);
+  }, []);
   const totalUnreadCount = useMemo(
     () => conversations.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0),
     [conversations],
