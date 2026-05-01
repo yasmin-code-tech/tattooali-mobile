@@ -15,6 +15,7 @@ import ReviewScreen from '../screens/ReviewScreen';
 import MyReviewsScreen from '../screens/MyReviewsScreen';
 import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
+import MinhasDenunciasScreen from '../screens/MinhasDenunciasScreen';
 const Stack = createNativeStackNavigator();
 
 function getScreenTitle(routeName) {
@@ -23,6 +24,7 @@ function getScreenTitle(routeName) {
   if (routeName === 'Perfil') return 'MEU PERFIL';
   if (routeName === 'EditarPerfil') return 'EDITAR PERFIL';
   if (routeName === 'Contatos') return 'CONTATOS';
+  if (routeName === 'MinhasDenuncias') return 'MINHAS DENÚNCIAS';
   return routeName.toUpperCase();
 }
 
@@ -103,6 +105,7 @@ export default function PrivateNavigator() {
       <Stack.Screen name="MyReviews"      component={MyReviewsScreen}      />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="MinhasDenuncias" component={MinhasDenunciasScreen} />
 
     </Stack.Navigator>
   );

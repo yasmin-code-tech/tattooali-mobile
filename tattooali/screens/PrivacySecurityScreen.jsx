@@ -38,7 +38,7 @@ export default function PrivacySecurityScreen() {
           icon="lock-closed"
           title="Alterar senha"
           description="Atualize sua senha para manter sua conta segura"
-          onPress={() => navigation.navigate('AlterarSenha')}
+          onPress={() => navigation.navigate('RedefinirSenha')}
         />
 
         {/* 🚨 DENÚNCIAS */}
