@@ -26,26 +26,16 @@ export default function RedefinirSenhaScreen() {
   // Graças ao getStateFromPath que configuramos, o fragmento '#' virou query param.
   const { access_token } = route.params || {};
 
-  const [validandoToken, setValidandoToken] = useState(!!access_token && !isAuthenticated);
+  const [validandoToken, setValidandoToken] = useState(false);
 
   // Verifica se o token existe assim que a tela monta
   useEffect(() => {
     async function verificarToken() {
-      // Se não estiver logado e houver um token, precisamos validar com o servidor
-      if (!isAuthenticated && access_token) {
-        try {
-          await api.post('/api/user/validar-token', { token: access_token });
-          setValidandoToken(false);
-        } catch (e) {
-          Alert.alert(
-            'Link Expirado',
-            'Este link de recuperação não é mais válido ou já foi utilizado. Tente solicitar um novo e-mail.',
-            [{ text: 'Ir para Login', onPress: () => navigation.navigate('Login') }]
-          );
-        }
-      } 
+      // Removida a chamada ao validar-token no carregamento da tela para evitar 
+      // consumir o token de recuperação antes da alteração real da senha.
+
       // Se não estiver logado E não houver token, o acesso é inválido direto
-      else if (!isAuthenticated && !access_token) {
+      if (!isAuthenticated && !access_token) {
         Alert.alert(
           'Acesso Inválido',
           'Para alterar sua senha, você deve estar logado ou acessar o link enviado para o seu e-mail.',
@@ -93,14 +83,13 @@ export default function RedefinirSenhaScreen() {
 
     try {
       const payload = { novaSenha: senha };
-      
-      // Se houver um token (fluxo externo), enviamos no corpo. 
-      // Se estiver logado (fluxo interno), o middleware do backend usará o token da sessão no header.
-      if (access_token) {
-        payload.token = access_token;
-      }
+      const options = {};
 
-      await api.post('/api/user/alterar-senha', payload);
+      // Se houver um token de recuperação, enviamos via Header para o middleware validar
+      if (access_token) {
+        options.headers = { 'Authorization': `Bearer ${access_token}` };
+      }
+      await api.post('/api/user/alterar-senha', payload, options);
       setSucesso('Sua senha foi redefinida com sucesso!');
 
       Alert.alert(
