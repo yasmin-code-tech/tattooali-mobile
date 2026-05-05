@@ -16,6 +16,7 @@ import MyReviewsScreen from '../screens/MyReviewsScreen';
 import PrivacySecurityScreen from '../screens/PrivacySecurityScreen';
 import NotificationsScreen from '../screens/NotificationsScreen';
 import MinhasDenunciasScreen from '../screens/MinhasDenunciasScreen';
+import RedefinirSenhasScreen from '../screens/auth/RedefinirSenhaScreen';
 const Stack = createNativeStackNavigator();
 
 function getScreenTitle(routeName) {
@@ -106,7 +107,7 @@ export default function PrivateNavigator() {
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="MinhasDenuncias" component={MinhasDenunciasScreen} />
-
+      <Stack.Screen name="RedefinirSenha" component={RedefinirSenhasScreen} />
     </Stack.Navigator>
   );
 }

@@ -29,7 +29,8 @@ export async function apiFetch(path, options = {}) {
 
   const headers = new Headers(options.headers || {});
   const token = await AsyncStorage.getItem(TOKEN_KEY);
-  if (token) {
+  // Só adiciona o token do storage se não houver um Authorization já definido manualmente
+  if (token && !headers.has('Authorization')) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 

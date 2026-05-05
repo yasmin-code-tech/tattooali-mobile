@@ -11,42 +11,60 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { colors, radius } from '../../theme';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 
 export default function RedefinirSenhaScreen() {
   const navigation = useNavigation();
   const route = useRoute();
+  const { isAuthenticated } = useAuth();
 
   // O access_token é extraído dos parâmetros da rota injetados pelo Linking no App.js
   // Graças ao getStateFromPath que configuramos, o fragmento '#' virou query param.
   const { access_token } = route.params || {};
 
+  const [validandoToken, setValidandoToken] = useState(false);
+
   // Verifica se o token existe assim que a tela monta
   useEffect(() => {
-    if (!access_token) {
-      Alert.alert(
-        'Acesso Inválido',
-        'Esta tela só pode ser acessada através do link enviado para o seu e-mail.',
-        [{ text: 'Voltar ao Login', onPress: () => navigation.navigate('Login') }]
-      );
-      // Redireciona preventivamente caso o alert não bloqueie a interação
-      navigation.navigate('Login');
+    async function verificarToken() {
+      // Removida a chamada ao validar-token no carregamento da tela para evitar 
+      // consumir o token de recuperação antes da alteração real da senha.
+
+      // Se não estiver logado E não houver token, o acesso é inválido direto
+      if (!isAuthenticated && !access_token) {
+        Alert.alert(
+          'Acesso Inválido',
+          'Para alterar sua senha, você deve estar logado ou acessar o link enviado para o seu e-mail.',
+          [{ text: 'Voltar ao Login', onPress: () => navigation.navigate('Login') }]
+        );
+      }
     }
-  }, [access_token, navigation]);
+    verificarToken();
+  }, [access_token, isAuthenticated]);
 
   const [senha, setSenha] = useState('');
   const [confirmarSenha, setConfirmarSenha] = useState('');
+  const [mostrarSenha, setMostrarSenha] = useState(false);
+  const [mostrarConfirmarSenha, setMostrarConfirmarSenha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erro, setErro] = useState('');
+  const [sucesso, setSucesso] = useState('');
 
   const [senhaFocused, setSenhaFocused] = useState(false);
   const [confirmarFocused, setConfirmarFocused] = useState(false);
 
+  // Verifica em tempo real se as senhas são diferentes (apenas se o segundo campo não estiver vazio)
+  const senhasDiferentes = confirmarSenha.length > 0 && senha !== confirmarSenha;
+
   async function handleRedefinir() {
-    if (!access_token) {
-      setErro('Token de recuperação expirado ou inválido. Tente solicitar um novo e-mail.');
+    // Se não tem token e não está logado, não podemos prosseguir
+    setSucesso('');
+    if (!access_token && !isAuthenticated) {
+      setErro('Sessão expirada ou token inválido. Tente fazer login ou solicitar um novo e-mail.');
       return;
     }
 
@@ -64,24 +82,44 @@ export default function RedefinirSenhaScreen() {
     setLoading(true);
 
     try {
-      // Chamada para o backend enviando o token do Supabase e a nova senha
-      // Note que passamos o access_token como 'token' para bater com o seu userController
-      await api.post('/api/user/alterar-senha', {
-        token: access_token,
-        novaSenha: senha,
-      });
+      const payload = { novaSenha: senha };
+      const options = {};
+
+      // Se houver um token de recuperação, enviamos via Header para o middleware validar
+      if (access_token) {
+        options.headers = { 'Authorization': `Bearer ${access_token}` };
+      }
+      await api.post('/api/user/alterar-senha', payload, options);
+      setSucesso('Sua senha foi redefinida com sucesso!');
 
       Alert.alert(
         'Sucesso',
         'Sua senha foi redefinida com sucesso!',
-        [{ text: 'Fazer Login', onPress: () => navigation.navigate('Login') }]
+        [{ 
+          text: isAuthenticated ? 'OK' : 'Fazer Login', 
+          onPress: () => isAuthenticated ? navigation.goBack() : navigation.navigate('Login') 
+        }]
       );
     } catch (e) {
-      const msg = e?.response?.data?.error || e?.message || 'Não foi possível redefinir a senha.';
+      // Captura a mensagem de erro vinda do seu backend
+      const msg = e?.data?.error || e?.data?.message || e?.message || 'Não foi possível redefinir a senha.';
       setErro(msg);
     } finally {
       setLoading(false);
     }
+  }
+
+  function handleBack() {
+    isAuthenticated ? navigation.goBack() : navigation.navigate('Login');
+  }
+
+  if (validandoToken) {
+    return (
+      <View style={[styles.root, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.red} />
+        <Text style={{ color: colors.text2, marginTop: 12 }}>Validando acesso...</Text>
+      </View>
+    );
   }
 
   return (
@@ -95,6 +133,9 @@ export default function RedefinirSenhaScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
+          <TouchableOpacity style={styles.backBtn} onPress={handleBack}>
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
+          </TouchableOpacity>
           <Text style={styles.title}>{'NOVA\nSENHA'}</Text>
           <Text style={styles.subtitle}>Crie uma senha forte para sua segurança.</Text>
         </View>
@@ -105,34 +146,68 @@ export default function RedefinirSenhaScreen() {
           </View>
         )}
 
+        {sucesso !== '' && (
+          <View style={styles.successBox}>
+            <Text style={styles.successText}>{sucesso}</Text>
+          </View>
+        )}
+
         <View style={styles.inputGroup}>
           <Text style={styles.label}>NOVA SENHA</Text>
-          <TextInput
-            style={[styles.input, senhaFocused && styles.inputFocused]}
-            placeholder="Mínimo 8 caracteres"
-            placeholderTextColor={colors.text3}
-            secureTextEntry
-            value={senha}
-            onChangeText={(v) => { setSenha(v); setErro(''); }}
-            onFocus={() => setSenhaFocused(true)}
-            onBlur={() => setSenhaFocused(false)}
-            editable={!loading}
-          />
+          <View style={styles.passwordRow}>
+            <TextInput
+              style={[styles.input, senhaFocused && styles.inputFocused, styles.passwordInput]}
+              placeholder="Mínimo 8 caracteres"
+              placeholderTextColor={colors.text3}
+              secureTextEntry={!mostrarSenha}
+              value={senha}
+              onChangeText={(v) => { setSenha(v); setErro(''); setSucesso(''); }}
+              onFocus={() => setSenhaFocused(true)}
+              onBlur={() => setSenhaFocused(false)}
+              editable={!loading}
+            />
+            <TouchableOpacity
+              style={styles.showPasswordBtn}
+              onPress={() => setMostrarSenha(prev => !prev)}
+            >
+              <Ionicons name={mostrarSenha ? "eye-off" : "eye"} size={20} color={colors.text2} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.inputGroup}>
           <Text style={styles.label}>CONFIRMAR SENHA</Text>
-          <TextInput
-            style={[styles.input, confirmarFocused && styles.inputFocused]}
-            placeholder="Repita a nova senha"
-            placeholderTextColor={colors.text3}
-            secureTextEntry
-            value={confirmarSenha}
-            onChangeText={(v) => { setConfirmarSenha(v); setErro(''); }}
-            onFocus={() => setConfirmarFocused(true)}
-            onBlur={() => setConfirmarFocused(false)}
-            editable={!loading}
-          />
+          <View style={styles.passwordRow}>
+            <TextInput
+              style={[
+                styles.input, 
+                confirmarFocused && styles.inputFocused, 
+                senhasDiferentes && styles.inputError,
+                styles.passwordInput
+              ]}
+              placeholder="Repita a nova senha"
+              placeholderTextColor={colors.text3}
+              secureTextEntry={!mostrarConfirmarSenha}
+              value={confirmarSenha}
+              onChangeText={(v) => { setConfirmarSenha(v); setErro(''); setSucesso(''); }}
+              onFocus={() => setConfirmarFocused(true)}
+              onBlur={() => setConfirmarFocused(false)}
+              editable={!loading}
+            />
+            <TouchableOpacity
+              style={styles.showPasswordBtn}
+              onPress={() => setMostrarConfirmarSenha(prev => !prev)}
+            >
+              <Ionicons 
+                name={mostrarConfirmarSenha ? "eye-off" : "eye"} 
+                size={20} 
+                color={senhasDiferentes ? colors.red : colors.text2} 
+              />
+            </TouchableOpacity>
+          </View>
+          {senhasDiferentes && (
+            <Text style={styles.helperErrorText}>As senhas não coincidem</Text>
+          )}
         </View>
 
         <TouchableOpacity
@@ -149,8 +224,8 @@ export default function RedefinirSenhaScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity 
-          style={styles.loginLinkWrap} 
-          onPress={() => navigation.navigate('Login')}
+          style={styles.loginLinkWrap}
+          onPress={handleBack}
           disabled={loading}
         >
           <Text style={styles.loginLink}>Cancelar e voltar</Text>
@@ -162,15 +237,23 @@ export default function RedefinirSenhaScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
-  content: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 80, paddingBottom: 40 },
+  content: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 60, paddingBottom: 40 },
   header: { marginBottom: 32 },
+  backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.surface2, alignItems: 'center', justifyContent: 'center', marginBottom: 20 },
   title: { fontSize: 36, letterSpacing: 2, color: colors.text, lineHeight: 38, fontWeight: '700' },
   subtitle: { color: colors.text2, fontSize: 13, marginTop: 8 },
   inputGroup: { marginBottom: 14 },
   label: { fontSize: 11, fontWeight: '600', color: colors.text3, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 6 },
   input: { backgroundColor: colors.surface2, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: 16, paddingVertical: 14, color: colors.text, fontSize: 14 },
   inputFocused: { borderColor: colors.red },
+  inputError: { borderColor: '#f87171' },
+  helperErrorText: { color: '#f87171', fontSize: 11, marginTop: 4, fontWeight: '500' },
   errorBox: { backgroundColor: 'rgba(229,48,48,0.1)', borderWidth: 1, borderColor: 'rgba(229,48,48,0.3)', borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14 },
+  successBox: { backgroundColor: 'rgba(74,222,128,0.1)', borderWidth: 1, borderColor: 'rgba(74,222,128,0.3)', borderRadius: radius.sm, paddingHorizontal: 14, paddingVertical: 10, marginBottom: 14 },
+  successText: { color: '#4ade80', fontSize: 13, textAlign: 'center', fontWeight: '600' },
+  passwordRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  passwordInput: { flex: 1 },
+  showPasswordBtn: { padding: 12, backgroundColor: colors.surface2, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border },
   errorText: { color: '#f87171', fontSize: 13, textAlign: 'center' },
   btnPrimary: { backgroundColor: colors.red, borderRadius: radius.md, paddingVertical: 16, alignItems: 'center', marginTop: 8, shadowColor: colors.red, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 6 },
   btnPrimaryDisabled: { opacity: 0.65 },
