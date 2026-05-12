@@ -16,7 +16,6 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, radius } from '../../theme';
 import { useAuth } from '../../context/AuthContext';
-import { getApiConfigDebug } from '../../lib/config';
 
 export default function LoginScreen() {
   const navigation = useNavigation();
@@ -56,6 +55,7 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
+      testID="login-screen"
       style={styles.root}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
@@ -315,23 +315,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
   },
-  apiDebugBox: {
-    marginTop: 28,
-    padding: 12,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-  },
-  apiDebugLabel: {
-    color: colors.text3,
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-    marginBottom: 6,
-    textTransform: 'uppercase',
-  },
-  apiDebugUrl: { color: colors.text, fontSize: 12, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
-  apiDebugSource: { color: colors.text2, fontSize: 11, marginTop: 6 },
-  apiDebugHint: { color: '#fbbf24', fontSize: 11, marginTop: 8, lineHeight: 16 },
 });

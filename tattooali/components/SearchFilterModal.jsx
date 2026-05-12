@@ -130,7 +130,7 @@ const SearchFilterModal = ({ visible, onClose, onApply, onReset }) => {
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalBox}>
+        <View testID="search-filter-modal" style={styles.modalBox}>
           <View style={styles.dragIndicator} />
           <Text style={styles.modalTitle}>Filtrar por</Text>
           <View style={styles.filterChoices}>

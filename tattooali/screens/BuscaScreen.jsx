@@ -206,7 +206,7 @@ export default function BuscaScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View testID="busca-screen" style={styles.root}>
       <FlatList
         data={loading ? [] : filteredArtists}
         keyExtractor={(item) => item.id.toString()}
@@ -242,6 +242,7 @@ export default function BuscaScreen() {
                   autoCapitalize="none"
                 />
                 <TouchableOpacity
+                  testID="busca-abrir-filtros"
                   style={styles.filterButton}
                   onPress={() => setFilterModalVisible(true)}
                   activeOpacity={0.7}
@@ -258,6 +259,7 @@ export default function BuscaScreen() {
                 {styleChips.map((style) => (
                   <TouchableOpacity
                     key={style}
+                    testID={`busca-chip-${style}`}
                     style={[styles.filterChip, activeFilter === style && styles.filterChipActive]}
                     onPress={() => setActiveFilter(style)}
                     activeOpacity={0.8}
@@ -338,7 +340,7 @@ export default function BuscaScreen() {
         visible={filterModalVisible}
         onClose={() => setFilterModalVisible(false)}
         onApply={(f) => {
-          setappliedBairroId(f.bairro_id);
+          setappliedBairroId(f.bairro_id ?? f.bairro ?? null);
           setAppliedStars(f.estrelas);
         }}
         onReset={() => {

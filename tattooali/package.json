@@ -10,7 +10,12 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test:e2e": "sh -c 'cd .. && npm run test:e2e'",
+    "test:e2e:headed": "sh -c 'cd .. && npm run test:e2e:headed'",
+    "test:e2e:debug": "sh -c 'cd .. && npm run test:e2e:debug'",
+    "test:e2e:devweb": "sh -c 'cd .. && npm run test:e2e:devweb'",
+    "test:e2e:devweb:headed": "sh -c 'cd .. && npm run test:e2e:devweb:headed'"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

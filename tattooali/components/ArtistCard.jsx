@@ -21,7 +21,12 @@ function ArtistCard({ artist, onPress }) {
   const showPhoto = isRemoteUrl(artist.avatar);
   const initial = (artist.name && artist.name.charAt(0).toUpperCase()) || '🎨';
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity
+      testID={artist?.id != null ? `artist-card-${artist.id}` : 'artist-card'}
+      style={styles.card}
+      onPress={onPress}
+      activeOpacity={0.85}
+    >
       <View style={styles.cardImg}>
         {showPhoto ? (
           <Image source={{ uri: artist.avatar }} style={styles.cardImgPhoto} resizeMode="cover" />

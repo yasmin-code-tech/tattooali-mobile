@@ -286,7 +286,7 @@ export default function AgendaScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View style={styles.root} testID="agenda-screen">
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -304,6 +304,7 @@ export default function AgendaScreen() {
           <Text style={styles.agendaTabsHint}>Suas sessões por status</Text>
           <View style={styles.agendaTabs} accessibilityRole="tablist">
             <Pressable
+              testID="agenda-tab-agendadas"
               accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'agendadas' }}
               accessibilityLabel="Sessões agendadas"
@@ -328,6 +329,7 @@ export default function AgendaScreen() {
               </Text>
             </Pressable>
             <Pressable
+              testID="agenda-tab-concluidas"
               accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'concluidas' }}
               accessibilityLabel="Sessões concluídas"
@@ -352,6 +354,7 @@ export default function AgendaScreen() {
               </Text>
             </Pressable>
             <Pressable
+              testID="agenda-tab-canceladas"
               accessibilityRole="tab"
               accessibilityState={{ selected: activeTab === 'canceladas' }}
               accessibilityLabel="Sessões canceladas"

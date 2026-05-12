@@ -7,6 +7,12 @@
     "android": "npm run android --prefix tattooali",
     "ios": "npm run ios --prefix tattooali",
     "web": "npm run web --prefix tattooali",
-    "setup": "npm install --prefix tattooali"
-  }
+    "setup": "npm install --prefix tattooali",
+    "test:e2e": "bash scripts/run-e2e.sh -v",
+    "test:e2e:headed": "bash scripts/run-e2e.sh -v --headed",
+    "test:e2e:debug": "PWDEBUG=1 bash scripts/run-e2e.sh -v --headed",
+    "test:e2e:devweb": "bash scripts/run-e2e.sh -v --base-url http://localhost:8081",
+    "test:e2e:devweb:headed": "bash scripts/run-e2e.sh -v --headed --base-url http://localhost:8081"
+  },
+  "packageManager": "yarn@4.13.0+sha512.5c20ba010c99815433e5c8453112165e673f1c7948d8d2b267f4b5e52097538658388ebc9f9580656d9b75c5cc996f990f611f99304a2197d4c56d21eea370e7"
 }
