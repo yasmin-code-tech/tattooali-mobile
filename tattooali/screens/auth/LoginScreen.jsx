@@ -21,7 +21,6 @@ import { getApiConfigDebug } from '../../lib/config';
 export default function LoginScreen() {
   const navigation = useNavigation();
   const { login } = useAuth();
-  const apiDebug = typeof __DEV__ !== 'undefined' && __DEV__ ? getApiConfigDebug() : null;
 
   const [email, setEmail]               = useState('');
   const [senha, setSenha]               = useState('');
@@ -173,18 +172,7 @@ export default function LoginScreen() {
           </View>
         </View>
 
-        {apiDebug ? (
-          <View style={styles.apiDebugBox}>
-            <Text style={styles.apiDebugLabel}>API (só em desenvolvimento)</Text>
-            <Text style={styles.apiDebugUrl} selectable>
-              {apiDebug.API_ORIGIN}
-            </Text>
-            <Text style={styles.apiDebugSource}>Origem: {apiDebug.source}</Text>
-            {apiDebug.hint ? (
-              <Text style={styles.apiDebugHint}>{apiDebug.hint}</Text>
-            ) : null}
-          </View>
-        ) : null}
+
       </ScrollView>
     </KeyboardAvoidingView>
   );
