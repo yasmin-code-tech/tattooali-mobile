@@ -1,0 +1,13 @@
+# E2E: pytest + Playwright (Python)
+#
+# Setup:
+#   python3 -m venv .venv && . .venv/bin/activate
+#   pip install -r requirements-e2e.txt && python3 -m playwright install chromium
+#
+# Login real (opcional): copie e2e.env.example para .env.e2e na raiz e preencha.
+# O conftest carrega .env.e2e automaticamente (não precisa source antes do npm).
+#   npm run test:e2e
+#   npm run test:e2e:devweb   # contra http://localhost:8081 (Expo já aberto com npm start + w)
+#
+pytest>=8.0,<9
+pytest-playwright>=0.5,<1

@@ -277,7 +277,7 @@ export function ArtistModal({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity style={styles.modalSheet} activeOpacity={1}>
+        <TouchableOpacity testID="artist-modal-sheet" style={styles.modalSheet} activeOpacity={1}>
           <View style={styles.modalHandle} />
 
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.modalScroll}>

@@ -33,6 +33,7 @@ export default function AppLayout({ children }) {
           return (
             <TouchableOpacity
               key={item.label}
+              testID={`nav-${item.route}`}
               style={[styles.navItem, active && styles.navItemActive]}
               onPress={() => navigation.navigate(item.route)}
               activeOpacity={0.75}
