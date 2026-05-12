@@ -29,7 +29,7 @@ export default function MinhasDenunciasScreen() {
     if (!isRefresh) setLoading(true);
     setErro('');
     try {
-      const response = await api.get(`/api/reports/all`); // Alterado para a nova rota dedicada
+      const response = await api.get(`/api/reports/my`); // Alterado para a nova rota dedicada
       setDenuncias(response?.success ? response.data : []);
     } catch (e) {
       setErro('Não foi possível carregar suas denúncias.');
@@ -57,11 +57,11 @@ export default function MinhasDenunciasScreen() {
           </Text>
         </View>
         <Text style={styles.date}>
-          {new Date(item.created_at).toLocaleDateString('pt-BR')} {/* Usando o novo nome do campo */}
+          {new Date(item.createdAt).toLocaleDateString('pt-BR')} {/* Usando o novo nome do campo */}
         </Text>
       </View>
       
-      <Text style={styles.targetName}>Denunciado: {item.denunciado}</Text>
+      <Text style={styles.targetName}>Denunciado: {item.denunciado_nome}</Text>
       <Text style={styles.description} numberOfLines={3}>
         {item.descricao}
       </Text>
@@ -77,6 +77,7 @@ export default function MinhasDenunciasScreen() {
     <View style={styles.root}>
       <FlatList
         data={denuncias}
+        renderItem={renderItem}
         keyExtractor={(item) => String(item.report_id)} // Usando o novo nome do campo
         contentContainerStyle={styles.listContent}
         refreshControl={

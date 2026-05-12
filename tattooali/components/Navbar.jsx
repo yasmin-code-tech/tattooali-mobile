@@ -51,16 +51,6 @@ export default function AppLayout({ children }) {
             </TouchableOpacity>
           );
         })}
-
-        {/* Logout */}
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={handleLogout}
-          activeOpacity={0.75}
-        >
-          <Ionicons name="log-out-outline" size={22} color="#f87171" />
-          <Text style={[styles.navLabel, styles.navLabelLogout]}>SAIR</Text>
-        </TouchableOpacity>
       </View>
     </View>
   );

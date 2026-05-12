@@ -17,6 +17,7 @@ import {
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../lib/api';
+import { useAuth } from '../context/AuthContext';
 
 const C = {
   bg:          '#0c0c0e',
