@@ -357,7 +357,7 @@ export default function EditarPerfilScreen() {
   }
 
   return (
-    <View style={styles.root}>
+    <View testID="editar-perfil-screen" style={styles.root}>
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={styles.scrollContent}

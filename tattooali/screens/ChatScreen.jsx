@@ -204,13 +204,13 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView testID="chat-screen" style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <TouchableOpacity testID="chat-back" onPress={() => navigation.goBack()} style={styles.backButton}>
             <Ionicons name="chevron-back" size={28} color="#f0f0f0" />
           </TouchableOpacity>
 
@@ -255,6 +255,7 @@ export default function ChatScreen() {
 
         <View style={styles.inputContainer}>
           <TextInput
+            testID="chat-input"
             style={styles.input}
             placeholder="Digite sua mensagem..."
             placeholderTextColor="#555"
@@ -264,6 +265,7 @@ export default function ChatScreen() {
             editable={!!conversationId && !error}
           />
           <TouchableOpacity
+            testID="chat-send"
             style={[styles.sendButton, (inputText.trim().length === 0 || !conversationId) && { opacity: 0.5 }]}
             onPress={handleSend}
             disabled={inputText.trim().length === 0 || !conversationId}

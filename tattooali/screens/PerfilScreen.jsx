@@ -98,7 +98,7 @@ export default function PerfilScreen({ route }) {
   }, [route?.params?.profile, user]);
 
   return (
-    <View style={styles.root}>
+    <View testID="perfil-screen" style={styles.root}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -140,6 +140,7 @@ export default function PerfilScreen({ route }) {
             </View>
           </View>
           <TouchableOpacity
+            testID="perfil-editar"
             style={styles.btnOutline}
             onPress={() => navigation.navigate('EditarPerfil', { profile })}
           >

@@ -24,6 +24,7 @@ const ContactItem = React.memo(({ item, onPress }) => {
 
   return (
     <TouchableOpacity
+      testID={`contatos-conversa-${item.id}`}
       style={styles.contactItem}
       onPress={() => onPress(item)}
       activeOpacity={0.7}
@@ -110,7 +111,7 @@ export default function ContactsScreen({ navigation }) {
 
   return (
     <AppLayout>
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView testID="contatos-screen" style={styles.safe}>
         <StatusBar barStyle="light-content" backgroundColor={C.ink} />
 
       {/* ── HEADER ─────────────────────────────────────────── */}
