@@ -113,7 +113,9 @@ export default function BuscaScreen() {
     setLoading(true);
     setError(null);
     try {
-      const raw = await buscarTatuadores(debouncedQuery, activeFilter);
+      const raw = await buscarTatuadores(debouncedQuery, activeFilter, {
+        minRating: appliedStars != null ? Number(appliedStars) : undefined,
+      });
       const list = Array.isArray(raw)
         ? raw
             .map(mapBuscaToArtist)
@@ -138,7 +140,7 @@ export default function BuscaScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [debouncedQuery, activeFilter, meUserId]);
+  }, [debouncedQuery, activeFilter, meUserId, appliedStars]);
 
   useEffect(() => {
     loadArtists();
@@ -150,11 +152,11 @@ export default function BuscaScreen() {
       const matchBairro =
         !b ||
         (a.bairro_id && String(a.bairro_id).toLowerCase().includes(b)) ||
-        (a.address && String(a.address).toLowerCase().includes(b));
-      const matchStars = !appliedStars || (a.avg_rating || 0) >= appliedStars;
-      return matchBairro && matchStars;
+        (a.address && String(a.address).toLowerCase().includes(b)) ||
+        (a.bairro && String(a.bairro).toLowerCase().includes(b));
+      return matchBairro;
     });
-  }, [artists, appliedBairroId, appliedStars]);
+  }, [artists, appliedBairroId]);
 
   async function onRefresh() {
     setRefreshing(true);
@@ -220,8 +222,7 @@ export default function BuscaScreen() {
             <View style={styles.hero}>
               <Text style={styles.heroTitle}>{'ENCONTRE\nSEU ARTISTA'}</Text>
               <Text style={styles.heroSub}>
-                Busque por nome, bio, endereço ou bairro_id (API). Use o filtro para bairro_id de Fortaleza e
-                nota mínima.
+                Busque por nome, bio, endereço ou estilo. Ou filtre por bairro e avaliações:
               </Text>
 
               {error ? (

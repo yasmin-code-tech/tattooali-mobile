@@ -8,11 +8,16 @@ export async function buscarCatalogoEstilos() {
 /**
  * @param {string} [q] - texto livre (nome, bio, endereço)
  * @param {string} [estilo] - chip da UI ou "Todos"
+ * @param {{ minRating?: number }} [opts] - `minRating` 1–5: média mínima de avaliações (backend: `min_rating` em GET /api/tatuador/search, ex. feat/filtro-por-avaliacao)
  */
-export async function buscarTatuadores(q = '', estilo = 'Todos') {
+export async function buscarTatuadores(q = '', estilo = 'Todos', opts = {}) {
   const qs = new URLSearchParams();
   if (q && String(q).trim()) qs.set('q', String(q).trim());
   qs.set('estilo', estilo || 'Todos');
+  const min = Number(opts.minRating);
+  if (Number.isFinite(min) && min >= 1 && min <= 5) {
+    qs.set('min_rating', String(Math.floor(min)));
+  }
   return api.get(`/api/tatuador/search?${qs.toString()}`);
 }
 

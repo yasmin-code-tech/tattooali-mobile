@@ -103,7 +103,11 @@ export default function PrivateNavigator() {
         options={{ headerShown: false }} 
       />
       <Stack.Screen name="Review"         component={ReviewScreen}         />
-      <Stack.Screen name="MyReviews"      component={MyReviewsScreen}      />
+      <Stack.Screen 
+        name="MyReviews"
+        component={MyReviewsScreen}     
+        options={{ headerShown: false }}  
+      />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="MinhasDenuncias" component={MinhasDenunciasScreen} />
