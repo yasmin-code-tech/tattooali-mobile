@@ -94,7 +94,25 @@ export default function PrivateNavigator() {
       <Stack.Screen
         name="EditarPerfil"
         component={EditarPerfilScreen}
-        options={{ headerBackTitleVisible: false }}
+        options={({ navigation }) => ({
+          headerBackTitleVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity
+              testID="editar-perfil-header-back"
+              onPress={() => navigation.goBack()}
+              style={{
+                width: 44,
+                height: 44,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: 4,
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="chevron-back" size={28} color="#f0f0f0" />
+            </TouchableOpacity>
+          ),
+        })}
       />
       <Stack.Screen name="Contatos"       component={Contactsscreen}       />
       <Stack.Screen 

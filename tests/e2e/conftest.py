@@ -164,3 +164,31 @@ def page_logada_agenda(page: Page) -> Page:
     page.get_by_test_id("nav-Agenda").click()
     expect(page.get_by_test_id("agenda-screen").first).to_be_visible(timeout=60_000)
     return page
+
+
+@pytest.fixture
+def page_logada_perfil(page: Page) -> Page:
+    """Login, Busca e navbar Perfil."""
+    email = os.environ.get("E2E_LOGIN_EMAIL", "").strip()
+    password = os.environ.get("E2E_LOGIN_PASSWORD", "")
+    if not email or not password:
+        pytest.skip("Crie .env.e2e com E2E_LOGIN_EMAIL e E2E_LOGIN_PASSWORD.")
+    perform_login(page, email, password)
+    expect_busca_logada(page)
+    page.get_by_test_id("nav-Perfil").click()
+    expect(page.get_by_test_id("perfil-screen").first).to_be_visible(timeout=60_000)
+    return page
+
+
+@pytest.fixture
+def page_logada_contatos(page: Page) -> Page:
+    """Login, Busca e navbar Contatos (lista de conversas)."""
+    email = os.environ.get("E2E_LOGIN_EMAIL", "").strip()
+    password = os.environ.get("E2E_LOGIN_PASSWORD", "")
+    if not email or not password:
+        pytest.skip("Crie .env.e2e com E2E_LOGIN_EMAIL e E2E_LOGIN_PASSWORD.")
+    perform_login(page, email, password)
+    expect_busca_logada(page)
+    page.get_by_test_id("nav-Contatos").click()
+    expect(page.get_by_test_id("contatos-screen").first).to_be_visible(timeout=60_000)
+    return page
