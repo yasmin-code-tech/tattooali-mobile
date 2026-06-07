@@ -8,14 +8,14 @@ import {
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   Image,
   ActivityIndicator,
   Alert,
   Modal,
   Pressable,
 } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -100,9 +100,10 @@ export default function ChatScreen() {
       const conv = await getOrCreateConversationId(token, peerAuth);
       if (!conv) throw new Error('Não foi possível abrir a conversa.');
       setConversationId(conv);
-      markAsRead(conv);
       const rows = await fetchMessages(token, conv);
       setMessages(rows);
+      const lastAt = rows.length ? rows[rows.length - 1].created_at : undefined;
+      markAsRead(conv, lastAt);
     } catch (e) {
       setError(e?.message || 'Falha ao carregar o chat.');
     } finally {
@@ -114,6 +115,12 @@ export default function ChatScreen() {
     load();
   }, [load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (conversationId) markAsRead(conversationId);
+    }, [conversationId, markAsRead]),
+  );
+
   useEffect(() => {
     let unsub = () => {};
     (async () => {
@@ -122,7 +129,7 @@ export default function ChatScreen() {
       unsub = subscribeToMessages(token, conversationId, (row) => {
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
         if (mySubRef.current && row?.sender_id && String(row.sender_id) !== String(mySubRef.current)) {
-          markAsRead(conversationId);
+          markAsRead(conversationId, row.created_at);
         }
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
       });
@@ -322,7 +329,7 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView testID="chat-screen" style={styles.safeArea}>
+    <SafeAreaView testID="chat-screen" style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}

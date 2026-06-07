@@ -14,6 +14,55 @@ import { getJwtSub } from '../lib/jwtSub';
 import { createSupabaseAuthed } from '../lib/supabaseClient';
 
 const TOKEN_KEY = '@tattooali:token';
+const READ_STATE_KEY = '@tattooali:chat_last_read';
+
+async function loadSeenAtMap() {
+  try {
+    const raw = await AsyncStorage.getItem(READ_STATE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+async function persistSeenAtMap(map) {
+  try {
+    await AsyncStorage.setItem(READ_STATE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+function resolveSeenTimestamp(conversationId, atIso, conversations, seenAtMap) {
+  if (atIso) {
+    const ts = new Date(atIso).getTime();
+    if (Number.isFinite(ts)) return ts;
+  }
+  const current = conversations.find((c) => String(c.conversationId) === String(conversationId));
+  if (current?.lastInteraction) {
+    const ts = new Date(current.lastInteraction).getTime();
+    if (Number.isFinite(ts)) return ts;
+  }
+  return Date.now();
+}
+
+function computeUnreadCount({
+  conversationId,
+  lastInteractionDate,
+  inferredUnread,
+  localUnread,
+  seenAtMap,
+}) {
+  const lastInteractionTs = lastInteractionDate ? new Date(lastInteractionDate).getTime() : 0;
+  const seenTs = Number(seenAtMap[String(conversationId)] || 0);
+  if (Number.isFinite(lastInteractionTs) && lastInteractionTs > 0 && lastInteractionTs <= seenTs) {
+    return 0;
+  }
+  const unseenByTime = Number.isFinite(lastInteractionTs) && lastInteractionTs > seenTs ? 1 : 0;
+  return Math.max(inferredUnread, localUnread, unseenByTime);
+}
 
 const ConversationsContext = createContext(null);
 
@@ -28,6 +77,7 @@ export function ConversationsProvider({ children }) {
   const mySubRef = useRef(null);
   const localUnreadRef = useRef({});
   const seenAtByConversationRef = useRef({});
+  const seenAtLoadedRef = useRef(false);
   const conversationsRef = useRef([]);
 
   useEffect(() => {
@@ -81,9 +131,6 @@ export function ConversationsProvider({ children }) {
           const inferredUnread = Math.max(0, inferUnreadCount(r, mySub));
           const localUnread = Math.max(0, Number(localUnreadRef.current[conversationId] || 0));
           const lastInteractionDate = r.last_at ? new Date(r.last_at) : new Date(0);
-          const lastInteractionTs = lastInteractionDate.getTime();
-          const seenTs = Number(seenAtByConversationRef.current[conversationId] || 0);
-          const unseenByTime = Number.isFinite(lastInteractionTs) && lastInteractionTs > seenTs ? 1 : 0;
           return {
             id: String(r.peer_app_user_id),
             peerAppUserId: r.peer_app_user_id,
@@ -93,21 +140,17 @@ export function ConversationsProvider({ children }) {
             lastMessage: r.last_body || '',
             isLastMessageMine: String(r.last_sender_id ?? r.last_message_sender_id ?? r.last_sender ?? r.sender_id) === String(mySub),
             lastInteraction: lastInteractionDate,
-            unreadCount: Math.max(inferredUnread, localUnread, unseenByTime),
+            unreadCount: computeUnreadCount({
+              conversationId,
+              lastInteractionDate,
+              inferredUnread,
+              localUnread,
+              seenAtMap: seenAtByConversationRef.current,
+            }),
             conversationId: r.conversation_id,
           };
         });
-      setConversations((prev) => {
-        const prevByConversation = new Map(prev.map((item) => [String(item.conversationId), item]));
-        return mapped.map((item) => {
-          const prevItem = prevByConversation.get(String(item.conversationId));
-          if (!prevItem) return item;
-          return {
-            ...item,
-            unreadCount: Math.max(Number(item.unreadCount) || 0, Number(prevItem.unreadCount) || 0),
-          };
-        });
-      });
+      setConversations(mapped);
     } catch (e) {
       setError(e?.message || 'Falha ao carregar conversas');
       setConversations([]);
@@ -119,6 +162,24 @@ export function ConversationsProvider({ children }) {
   useEffect(() => {
     refreshThreads();
   }, [refreshThreads]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      seenAtByConversationRef.current = {};
+      seenAtLoadedRef.current = false;
+      return undefined;
+    }
+    let alive = true;
+    loadSeenAtMap().then((map) => {
+      if (!alive) return;
+      seenAtByConversationRef.current = map;
+      seenAtLoadedRef.current = true;
+      refreshThreads();
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isAuthenticated, refreshThreads]);
 
   useEffect(() => {
     if (!isAuthenticated) return undefined;
@@ -175,7 +236,7 @@ export function ConversationsProvider({ children }) {
     };
   }, [isAuthenticated, refreshThreads]);
 
-  const markAsRead = useCallback((conversationId) => {
+  const markAsRead = useCallback((conversationId, atIso) => {
     const currentConversations = conversationsRef.current;
     if (!conversationId) {
       const now = Date.now();
@@ -185,17 +246,24 @@ export function ConversationsProvider({ children }) {
         seenNext[String(c.conversationId)] = Number.isFinite(ts) ? ts : now;
       }
       seenAtByConversationRef.current = seenNext;
+      persistSeenAtMap(seenNext);
       setLocalUnreadByConversation({});
       setConversations((prev) => prev.map((c) => ({ ...c, unreadCount: 0 })));
       return;
     }
     const key = String(conversationId);
-    const current = currentConversations.find((c) => String(c.conversationId) === key);
-    const seenTs = current ? new Date(current.lastInteraction).getTime() : Date.now();
-    seenAtByConversationRef.current = {
+    const seenTs = resolveSeenTimestamp(
+      key,
+      atIso,
+      currentConversations,
+      seenAtByConversationRef.current,
+    );
+    const seenNext = {
       ...seenAtByConversationRef.current,
-      [key]: Number.isFinite(seenTs) ? seenTs : Date.now(),
+      [key]: seenTs,
     };
+    seenAtByConversationRef.current = seenNext;
+    persistSeenAtMap(seenNext);
     setLocalUnreadByConversation((prev) => {
       if (!(key in prev)) return prev;
       const next = { ...prev };

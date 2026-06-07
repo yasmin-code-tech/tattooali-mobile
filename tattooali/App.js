@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 import { StatusBar } from 'expo-status-bar';
 import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AuthProvider } from './context/AuthContext';
 import { ConversationsProvider } from './context/ConversationsContext';
@@ -14,10 +15,12 @@ export default function App() {
       <ChatProfileSync />
       <NotificationsProvider>
         <ConversationsProvider>
-          <NavigationContainer>
-            <StatusBar style="light" />
-            <RootNavigator />
-          </NavigationContainer>
+          <SafeAreaProvider>
+            <NavigationContainer>
+              <StatusBar style="light" />
+              <RootNavigator />
+            </NavigationContainer>
+          </SafeAreaProvider>
         </ConversationsProvider>
       </NotificationsProvider>
     </AuthProvider>
