@@ -4,9 +4,10 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme';
+import { fullStarsFromRating } from '../utils/rating';
 
 const renderStars = (rating, size = 11) => {
-  const full = Math.floor(rating);
+  const full = fullStarsFromRating(rating);
   const empty = 5 - full;
   return (
     <Text style={[styles.stars, { fontSize: size }]}>

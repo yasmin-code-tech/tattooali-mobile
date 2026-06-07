@@ -14,13 +14,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { colors } from '../theme';
 import CommentCard from './CommentCard';
+import { fullStarsFromRating } from '../utils/rating';
 
 function isRemoteUrl(s) {
   return s && /^https?:\/\//i.test(String(s));
 }
 
 const renderStars = (rating, size) => {
-  const full = Math.floor(rating);
+  const full = fullStarsFromRating(rating);
   const empty = 5 - full;
   return (
     <Text style={[styles.stars, { fontSize: size }]}>
@@ -132,6 +133,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.5,
     marginBottom: 4,
+  },
+  modalRatingMeta: {
+    marginTop: 2,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  modalRatingMetaMuted: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: colors.text3,
   },
   modalInfoRow: {
     flexDirection: 'row',
@@ -306,6 +318,15 @@ export function ArtistModal({
                   <Text style={styles.modalName}>{artist.name}</Text>
                   <Text style={styles.modalStyles}>{artist.styles.join(' · ').toUpperCase()}</Text>
                   {renderStars(artist.avg_rating || 0, 15)}
+                  {artist.avg_rating > 0 && (artist.comments?.length ?? 0) > 0 ? (
+                    <Text style={styles.modalRatingMeta}>
+                      {artist.avg_rating}{' '}
+                      <Text style={styles.modalRatingMetaMuted}>
+                        ({artist.comments.length}{' '}
+                        {artist.comments.length === 1 ? 'avaliação' : 'avaliações'})
+                      </Text>
+                    </Text>
+                  ) : null}
                 </View>
               </View>
 

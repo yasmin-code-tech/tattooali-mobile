@@ -1,4 +1,5 @@
 import { api } from '../lib/api';
+import { computeReviewSummary } from '../utils/rating';
 
 /** Lista nomes de estilos cadastrados no backend (para chips de filtro). */
 export async function buscarCatalogoEstilos() {
@@ -73,13 +74,7 @@ export async function fetchTatuadorDetalhes(userId) {
       : null;
   const styleNames = (styles || []).map((s) => s.nome).filter(Boolean);
   const revs = Array.isArray(reviews) ? reviews : [];
-  const avg =
-    revs.length > 0
-      ? Math.round(
-          (revs.reduce((a, r) => a + (Number(r.nota) || 0), 0) / revs.length) *
-            10,
-        ) / 10
-      : 0;
+  const { roundedAverage: avg } = computeReviewSummary(revs);
 
   return {
     name,
