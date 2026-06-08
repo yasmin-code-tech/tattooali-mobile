@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -15,11 +15,12 @@ import {
   ToastAndroid,
   KeyboardAvoidingView,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Navbar from '../components/Navbar';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationsContext';
 
 /** Título do card: cliente vê nome da ficha (Clients) + linha com tatuador; tatuador vê nome do cliente. */
 function sessionCardTitle(sessao, viewerIsCliente) {
@@ -63,6 +64,7 @@ function getClienteAppUserId(sessao) {
 export default function AgendaScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { refreshNotifications } = useNotifications();
   const viewerIsCliente = user?.role === 'cliente';
   /** Quando role veio como tatuador mas a pessoa só tem sessões como cliente (CPF na agenda). */
   const [listLoadKind, setListLoadKind] = useState({
@@ -207,8 +209,11 @@ export default function AgendaScreen() {
     try {
       await api.put(`/api/sessions/${sessionId}`, { cancelado: true });
       showNotice('Sessão cancelada com sucesso.');
-      await handleLoadByTab('agendadas');
-      await handleLoadByTab('canceladas');
+      await Promise.all([
+        handleLoadByTab('agendadas'),
+        handleLoadByTab('canceladas'),
+        refreshNotifications(),
+      ]);
     } catch (e) {
       const msg =
         e?.status === 403
@@ -232,6 +237,12 @@ export default function AgendaScreen() {
     if (activeTab === 'concluidas') return concluidas;
     return canceladas;
   }
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshNotifications();
+    }, [refreshNotifications]),
+  );
 
   useEffect(() => {
     setListLoadKind({ agendadas: 'artist', concluidas: 'artist', canceladas: 'artist' });

@@ -30,23 +30,55 @@ const READ_ONE_ENDPOINTS = [
   (id) => `/api/mobile/notifications/${id}/read`,
 ];
 
+function notificationSortKey(raw) {
+  const value =
+    raw?.createdAt ??
+    raw?.created_at ??
+    raw?.data_criacao ??
+    raw?.updatedAt ??
+    raw?.updated_at ??
+    null;
+  const ts = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(ts) ? ts : 0;
+}
+
 function mapNotification(raw, idx) {
-  const id = raw?.id ?? raw?.notification_id ?? `${idx}-${raw?.created_at || Date.now()}`;
+  const notificationId = raw?.notification_id ?? raw?.id;
+  const id = String(notificationId ?? `${idx}-${raw?.tipo || 'n'}`);
   const title = String(raw?.titulo || raw?.title || 'Notificação');
   const message = String(raw?.mensagem || raw?.message || '');
-  const createdAt = raw?.created_at || raw?.data_criacao || new Date().toISOString();
+  const sortTs = notificationSortKey(raw);
+  const sortId = Number(notificationId) || 0;
+  const createdAt =
+    raw?.createdAt ??
+    raw?.created_at ??
+    raw?.data_criacao ??
+    (sortTs > 0 ? new Date(sortTs).toISOString() : null);
   const isRead = Boolean(raw?.lida ?? raw?.read ?? false);
   const type = String(raw?.tipo || raw?.type || 'GENERAL');
   return {
-    id: String(id),
+    id,
     title,
     message,
     createdAt,
     isRead,
     type,
+    sortTs,
+    sortId,
     payload: raw,
   };
 }
+
+function sortNotifications(rows) {
+  return [...rows]
+    .sort((a, b) => {
+      if (b.sortTs !== a.sortTs) return b.sortTs - a.sortTs;
+      return b.sortId - a.sortId;
+    })
+    .map(({ sortTs, sortId, payload, ...rest }) => rest);
+}
+
+const POLL_MS = 10000;
 
 export function NotificationsProvider({ children }) {
   const { isAuthenticated } = useAuth();
@@ -70,9 +102,7 @@ export function NotificationsProvider({ children }) {
         const data = await api.get(endpoint);
         if (seq !== fetchSeqRef.current) return [];
         const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
-        const mapped = rows.map(mapNotification).sort((a, b) => {
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
+        const mapped = sortNotifications(rows.map(mapNotification));
         setItems(mapped);
         return mapped;
       } catch (e) {
@@ -120,7 +150,7 @@ export function NotificationsProvider({ children }) {
     if (!isAuthenticated) return undefined;
     const id = setInterval(() => {
       fetchNotifications();
-    }, 45000);
+    }, POLL_MS);
     return () => clearInterval(id);
   }, [isAuthenticated, fetchNotifications]);
 
