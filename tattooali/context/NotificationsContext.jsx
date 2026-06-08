@@ -4,6 +4,7 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { AppState } from 'react-native';
@@ -50,39 +51,39 @@ function mapNotification(raw, idx) {
 export function NotificationsProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const fetchSeqRef = useRef(0);
 
-  const fetchNotifications = useCallback(async ({ silent = false } = {}) => {
+  const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) {
       setItems([]);
       setError(null);
-      setLoading(false);
       return [];
     }
-    if (!silent) setLoading(true);
+
+    const seq = ++fetchSeqRef.current;
     setError(null);
     let lastErr = null;
-    try {
-      for (const endpoint of GET_ENDPOINTS) {
-        try {
-          const data = await api.get(endpoint);
-          const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
-          const mapped = rows.map(mapNotification).sort((a, b) => {
-            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-          });
-          setItems(mapped);
-          return mapped;
-        } catch (e) {
-          lastErr = e;
-        }
+
+    for (const endpoint of GET_ENDPOINTS) {
+      try {
+        const data = await api.get(endpoint);
+        if (seq !== fetchSeqRef.current) return [];
+        const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
+        const mapped = rows.map(mapNotification).sort((a, b) => {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        setItems(mapped);
+        return mapped;
+      } catch (e) {
+        lastErr = e;
       }
-      setItems([]);
-      setError(lastErr?.message || 'Não foi possível carregar notificações.');
-      return [];
-    } finally {
-      if (!silent) setLoading(false);
     }
+
+    if (seq !== fetchSeqRef.current) return [];
+    setItems([]);
+    setError(lastErr?.message || 'Não foi possível carregar notificações.');
+    return [];
   }, [isAuthenticated]);
 
   const markAllAsRead = useCallback(async () => {
@@ -118,7 +119,7 @@ export function NotificationsProvider({ children }) {
   useEffect(() => {
     if (!isAuthenticated) return undefined;
     const id = setInterval(() => {
-      fetchNotifications({ silent: true });
+      fetchNotifications();
     }, 45000);
     return () => clearInterval(id);
   }, [isAuthenticated, fetchNotifications]);
@@ -126,7 +127,7 @@ export function NotificationsProvider({ children }) {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && isAuthenticated) {
-        fetchNotifications({ silent: true });
+        fetchNotifications();
       }
     });
     return () => sub.remove();
@@ -141,13 +142,12 @@ export function NotificationsProvider({ children }) {
     () => ({
       notifications: items,
       unreadCount,
-      loading,
       error,
       refreshNotifications: fetchNotifications,
       markAllAsRead,
       markOneAsRead,
     }),
-    [items, unreadCount, loading, error, fetchNotifications, markAllAsRead, markOneAsRead],
+    [items, unreadCount, error, fetchNotifications, markAllAsRead, markOneAsRead],
   );
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

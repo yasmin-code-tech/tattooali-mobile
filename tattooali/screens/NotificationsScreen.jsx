@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   RefreshControl,
   TouchableOpacity,
   StyleSheet,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
@@ -33,18 +34,41 @@ function iconByType(type) {
 export default function NotificationsScreen() {
   const {
     notifications,
-    loading,
     error,
     refreshNotifications,
     markAllAsRead,
     markOneAsRead,
   } = useNotifications();
 
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(notifications.length === 0);
+
   useFocusEffect(
     useCallback(() => {
-      refreshNotifications({ silent: true });
+      let active = true;
+      (async () => {
+        try {
+          await refreshNotifications();
+        } finally {
+          if (active) setBootstrapping(false);
+        }
+      })();
+      return () => {
+        active = false;
+      };
     }, [refreshNotifications]),
   );
+
+  const handlePullRefresh = useCallback(async () => {
+    setPullRefreshing(true);
+    try {
+      await refreshNotifications();
+    } finally {
+      setPullRefreshing(false);
+    }
+  }, [refreshNotifications]);
+
+  const showInitialLoader = bootstrapping && notifications.length === 0 && !error;
 
   return (
     <View style={styles.root}>
@@ -55,9 +79,10 @@ export default function NotificationsScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={loading}
-            onRefresh={refreshNotifications}
+            refreshing={pullRefreshing}
+            onRefresh={handlePullRefresh}
             tintColor="#e53030"
+            colors={['#e53030']}
           />
         }
         ListHeaderComponent={
@@ -70,14 +95,21 @@ export default function NotificationsScreen() {
           </View>
         }
         ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="notifications-off-outline" size={34} color="#666" />
-            <Text style={styles.emptyTitle}>Nenhuma notificacao por enquanto</Text>
-            <Text style={styles.emptySub}>
-              Quando houver sessoes marcadas, canceladas ou avaliacao disponivel, elas aparecerao aqui.
-            </Text>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          </View>
+          showInitialLoader ? (
+            <View style={styles.loadingState}>
+              <ActivityIndicator size="large" color="#e53030" />
+              <Text style={styles.loadingText}>Carregando notificacoes…</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <Ionicons name="notifications-off-outline" size={34} color="#666" />
+              <Text style={styles.emptyTitle}>Nenhuma notificacao por enquanto</Text>
+              <Text style={styles.emptySub}>
+                Quando houver sessoes marcadas, canceladas ou avaliacao disponivel, elas aparecerao aqui.
+              </Text>
+              {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            </View>
+          )
         }
         renderItem={({ item }) => (
           <TouchableOpacity
@@ -128,6 +160,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#121212',
   },
   markAllText: { color: '#d4d4d4', fontSize: 12, fontWeight: '600' },
+  loadingState: { paddingTop: 48, alignItems: 'center', gap: 12 },
+  loadingText: { color: '#8a8a8a', fontSize: 13 },
   card: {
     borderWidth: 1,
     borderColor: '#2f2f2f',
