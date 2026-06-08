@@ -7,14 +7,19 @@ import {
   TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
-  SafeAreaView,
   Image,
   ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 
 import { formatBubbleTime } from '../utils/timeUtils';
 import { getJwtSub } from '../lib/jwtSub';
@@ -23,12 +28,15 @@ import {
   getOrCreateConversationId,
   resolvePeerAuthId,
   sendChatMessage,
+  sendChatImageMessage,
   subscribeToMessages,
   isSupabaseConfigured,
+  CHAT_IMAGE_BODY_PLACEHOLDER,
 } from '../services/chatService';
 import { useConversations } from '../context/ConversationsContext';
 
 const TOKEN_KEY = '@tattooali:token';
+const KEYBOARD_EXTRA_GAP = 24;
 
 function isRemoteUrl(s) {
   return s && /^https?:\/\//i.test(String(s));
@@ -44,11 +52,41 @@ export default function ChatScreen() {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [sendingImage, setSendingImage] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState(null);
   const [error, setError] = useState(null);
   const flatListRef = useRef(null);
-  const { markAsRead } = useConversations();
+  const fileInputRef = useRef(null);
+  const { markAsRead, setActiveConversationId } = useConversations();
+  const insets = useSafeAreaInsets();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const mySubRef = useRef(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = (event) => {
+      setKeyboardHeight(event.endCoordinates?.height ?? 0);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    };
+    const onHide = () => setKeyboardHeight(0);
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
+
+  const showUserMessage = (title, message) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
 
   const load = useCallback(async () => {
     if (!Number.isFinite(peerId) || peerId < 1) {
@@ -82,9 +120,10 @@ export default function ChatScreen() {
       const conv = await getOrCreateConversationId(token, peerAuth);
       if (!conv) throw new Error('Não foi possível abrir a conversa.');
       setConversationId(conv);
-      markAsRead(conv);
       const rows = await fetchMessages(token, conv);
       setMessages(rows);
+      const lastAt = rows.length ? rows[rows.length - 1].created_at : undefined;
+      markAsRead(conv, lastAt);
     } catch (e) {
       setError(e?.message || 'Falha ao carregar o chat.');
     } finally {
@@ -96,6 +135,16 @@ export default function ChatScreen() {
     load();
   }, [load]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (conversationId) {
+        setActiveConversationId(conversationId);
+        markAsRead(conversationId);
+      }
+      return () => setActiveConversationId(null);
+    }, [conversationId, markAsRead, setActiveConversationId]),
+  );
+
   useEffect(() => {
     let unsub = () => {};
     (async () => {
@@ -104,7 +153,7 @@ export default function ChatScreen() {
       unsub = subscribeToMessages(token, conversationId, (row) => {
         setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
         if (mySubRef.current && row?.sender_id && String(row.sender_id) !== String(mySubRef.current)) {
-          markAsRead(conversationId);
+          markAsRead(conversationId, row.created_at);
         }
         setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
       });
@@ -156,11 +205,21 @@ export default function ChatScreen() {
   const renderMessage = ({ item }) => {
     const mine = mySubRef.current && String(item.sender_id) === String(mySubRef.current);
     const read = mine ? isMessageRead(item) : false;
+    const hasImage = Boolean(item.image_url);
+    const showCaption =
+      item.body &&
+      item.body !== CHAT_IMAGE_BODY_PLACEHOLDER &&
+      String(item.body).trim().length > 0;
 
     return (
       <View style={[styles.messageWrapper, mine ? styles.messageWrapperUser : styles.messageWrapperContact]}>
         <View style={[styles.bubble, mine ? styles.bubbleUser : styles.bubbleContact]}>
-          <Text style={styles.messageText}>{item.body}</Text>
+          {hasImage ? (
+            <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewImageUrl(item.image_url)}>
+              <Image source={{ uri: item.image_url }} style={styles.chatImage} resizeMode="cover" />
+            </TouchableOpacity>
+          ) : null}
+          {showCaption ? <Text style={styles.messageText}>{item.body}</Text> : null}
           <View style={styles.metaContainer}>
             <Text style={styles.timeText}>{formatBubbleTime(item.created_at)}</Text>
             {mine && (
@@ -175,6 +234,96 @@ export default function ChatScreen() {
         </View>
       </View>
     );
+  };
+
+  const handleSendImageAsset = async (asset) => {
+    if (!asset?.uri || !conversationId || sendingImage) return;
+    const token = await AsyncStorage.getItem(TOKEN_KEY);
+    if (!token) return;
+    setSendingImage(true);
+    try {
+      const row = await sendChatImageMessage(
+        token,
+        conversationId,
+        asset.uri,
+        asset.mimeType || 'image/jpeg',
+        inputText.trim(),
+      );
+      setInputText('');
+      setMessages((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    } catch (e) {
+      showUserMessage('Erro', e?.message || 'Não foi possível enviar a imagem.');
+    } finally {
+      setSendingImage(false);
+    }
+  };
+
+  const pickImageFromLibrary = async () => {
+    setAttachMenuOpen(false);
+    if (Platform.OS === 'web') {
+      fileInputRef.current?.click();
+      return;
+    }
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        showUserMessage('Permissão necessária', 'Precisamos acessar suas fotos para enviar imagens.');
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      await handleSendImageAsset(result.assets[0]);
+    } catch (e) {
+      showUserMessage('Erro', e?.message || 'Não foi possível abrir a galeria.');
+    }
+  };
+
+  const pickImageFromCamera = async () => {
+    setAttachMenuOpen(false);
+    if (Platform.OS === 'web') {
+      showUserMessage('Indisponível', 'Use a galeria no navegador para enviar uma imagem.');
+      return;
+    }
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        showUserMessage('Permissão necessária', 'Precisamos da câmera para tirar uma foto.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        quality: 0.85,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      await handleSendImageAsset(result.assets[0]);
+    } catch (e) {
+      showUserMessage('Erro', e?.message || 'Não foi possível abrir a câmera.');
+    }
+  };
+
+  const handleWebFileChange = async (event) => {
+    const file = event?.target?.files?.[0];
+    if (!file) return;
+    event.target.value = '';
+    const uri = URL.createObjectURL(file);
+    try {
+      await handleSendImageAsset({
+        uri,
+        mimeType: file.type || 'image/jpeg',
+      });
+    } finally {
+      URL.revokeObjectURL(uri);
+    }
+  };
+
+  const showAttachOptions = () => {
+    if (!conversationId || sendingImage) return;
+    setAttachMenuOpen(true);
   };
 
   const handleSend = async () => {
@@ -203,11 +352,16 @@ export default function ChatScreen() {
     );
   }
 
+  const keyboardLift = keyboardHeight > 0 ? keyboardHeight + KEYBOARD_EXTRA_GAP : 0;
+  const androidKeyboardLift = Platform.OS === 'android' ? keyboardLift : 0;
+  const inputBottomPadding = keyboardHeight > 0 ? 8 : Math.max(insets.bottom, 8);
+
   return (
-    <SafeAreaView testID="chat-screen" style={styles.safeArea}>
+    <SafeAreaView testID="chat-screen" style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, androidKeyboardLift > 0 && { paddingBottom: androidKeyboardLift }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? KEYBOARD_EXTRA_GAP : 0}
       >
         <View style={styles.header}>
           <TouchableOpacity testID="chat-back" onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -238,41 +392,113 @@ export default function ChatScreen() {
         ) : null}
 
         {loading ? (
-          <View style={{ padding: 24, alignItems: 'center' }}>
+          <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#e53030" />
           </View>
         ) : (
           <FlatList
             ref={flatListRef}
+            style={styles.messagesList}
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={renderMessage}
             contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
         )}
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: inputBottomPadding }]}>
+          <TouchableOpacity
+            testID="chat-attach-image"
+            style={[styles.attachButton, (!conversationId || sendingImage) && { opacity: 0.45 }]}
+            onPress={showAttachOptions}
+            disabled={!conversationId || !!error || sendingImage}
+          >
+            {sendingImage ? (
+              <ActivityIndicator size="small" color="#e53030" />
+            ) : (
+              <Ionicons name="image-outline" size={24} color="#e53030" />
+            )}
+          </TouchableOpacity>
           <TextInput
             testID="chat-input"
             style={styles.input}
-            placeholder="Digite sua mensagem..."
+            placeholder={sendingImage ? 'Enviando imagem…' : 'Digite sua mensagem…'}
             placeholderTextColor="#555"
             value={inputText}
             onChangeText={setInputText}
             multiline
-            editable={!!conversationId && !error}
+            editable={!!conversationId && !error && !sendingImage}
+            onFocus={() => {
+              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            }}
           />
           <TouchableOpacity
             testID="chat-send"
-            style={[styles.sendButton, (inputText.trim().length === 0 || !conversationId) && { opacity: 0.5 }]}
+            style={[styles.sendButton, (inputText.trim().length === 0 || !conversationId || sendingImage) && { opacity: 0.5 }]}
             onPress={handleSend}
-            disabled={inputText.trim().length === 0 || !conversationId}
+            disabled={inputText.trim().length === 0 || !conversationId || sendingImage}
           >
             <Ionicons name="send" size={20} color="#fff" />
           </TouchableOpacity>
         </View>
+
+        <Modal
+          visible={attachMenuOpen}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setAttachMenuOpen(false)}
+        >
+          <Pressable style={styles.attachBackdrop} onPress={() => setAttachMenuOpen(false)}>
+            <Pressable style={styles.attachSheet} onPress={(e) => e.stopPropagation()}>
+              <View style={styles.attachHandle} />
+              <Text style={styles.attachTitle}>Enviar imagem</Text>
+
+              <TouchableOpacity style={styles.attachOption} onPress={pickImageFromLibrary}>
+                <Ionicons name="images-outline" size={22} color="#e53030" />
+                <Text style={styles.attachOptionText}>Escolher da galeria</Text>
+              </TouchableOpacity>
+
+              {Platform.OS !== 'web' ? (
+                <TouchableOpacity style={styles.attachOption} onPress={pickImageFromCamera}>
+                  <Ionicons name="camera-outline" size={22} color="#e53030" />
+                  <Text style={styles.attachOptionText}>Tirar foto</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              <TouchableOpacity style={styles.attachCancel} onPress={() => setAttachMenuOpen(false)}>
+                <Text style={styles.attachCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
+
+        {Platform.OS === 'web' ? (
+          // eslint-disable-next-line react/no-unknown-property
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleWebFileChange}
+          />
+        ) : null}
+
+        <Modal visible={!!previewImageUrl} transparent animationType="fade" onRequestClose={() => setPreviewImageUrl(null)}>
+          <Pressable style={styles.imagePreviewBackdrop} onPress={() => setPreviewImageUrl(null)}>
+            <Pressable style={styles.imagePreviewInner} onPress={(e) => e.stopPropagation()}>
+              {previewImageUrl ? (
+                <Image source={{ uri: previewImageUrl }} style={styles.imagePreviewImg} resizeMode="contain" />
+              ) : null}
+              <TouchableOpacity style={styles.imagePreviewClose} onPress={() => setPreviewImageUrl(null)}>
+                <Ionicons name="close" size={28} color="#fff" />
+              </TouchableOpacity>
+            </Pressable>
+          </Pressable>
+        </Modal>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -339,6 +565,15 @@ const styles = StyleSheet.create({
     color: '#555',
     fontSize: 12,
   },
+  loadingWrap: {
+    flex: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messagesList: {
+    flex: 1,
+  },
   listContent: {
     padding: 16,
     paddingBottom: 24,
@@ -371,6 +606,13 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 20,
   },
+  chatImage: {
+    width: 220,
+    height: 220,
+    borderRadius: 12,
+    marginBottom: 6,
+    backgroundColor: '#1a1a1a',
+  },
   metaContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -393,6 +635,67 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#2a2a2a',
   },
+  attachButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 8,
+    backgroundColor: '#2a2a2a',
+  },
+  attachBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'flex-end',
+  },
+  attachSheet: {
+    backgroundColor: '#141414',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 24,
+    borderTopWidth: 1,
+    borderColor: '#2a2a2a',
+  },
+  attachHandle: {
+    alignSelf: 'center',
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#444',
+    marginBottom: 16,
+  },
+  attachTitle: {
+    color: '#f0f0f0',
+    fontSize: 16,
+    fontWeight: '700',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  attachOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#2a2a2a',
+  },
+  attachOptionText: {
+    color: '#f0f0f0',
+    fontSize: 16,
+  },
+  attachCancel: {
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  attachCancelText: {
+    color: '#888',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   input: {
     flex: 1,
     backgroundColor: '#2a2a2a',
@@ -413,5 +716,27 @@ const styles = StyleSheet.create({
     backgroundColor: '#e53030',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  imagePreviewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.92)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  imagePreviewInner: {
+    width: '100%',
+    maxHeight: '85%',
+    alignItems: 'center',
+  },
+  imagePreviewImg: {
+    width: '100%',
+    height: 400,
+  },
+  imagePreviewClose: {
+    position: 'absolute',
+    top: -48,
+    right: 0,
+    padding: 8,
   },
 });

@@ -30,7 +30,7 @@ function getScreenTitle(routeName) {
 }
 
 export default function PrivateNavigator() {
-  const { unreadCount } = useNotifications();
+  const { unreadCount, refreshNotifications } = useNotifications();
 
   return (
     <Stack.Navigator
@@ -50,7 +50,10 @@ export default function PrivateNavigator() {
         headerTitle: getScreenTitle(route.name),
         headerRight: () => (
           <TouchableOpacity
-            onPress={() => navigation.navigate('Notifications')}
+            onPress={() => {
+              refreshNotifications();
+              navigation.navigate('Notifications');
+            }}
             style={{
               width: 36,
               height: 36,

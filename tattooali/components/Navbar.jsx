@@ -4,6 +4,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
 import { useConversations } from '../context/ConversationsContext';
+import { useNotifications } from '../context/NotificationsContext';
 
 const NAV_ITEMS = [
   { label: 'BUSCAR', icon: 'search',          iconActive: 'search',           route: 'Busca'        },
@@ -18,6 +19,7 @@ export default function AppLayout({ children }) {
   const route      = useRoute();
   const { logout } = useAuth();
   const { totalUnreadCount } = useConversations();
+  const { hasAgendaUpdates } = useNotifications();
 
   function handleLogout() {
     logout();
@@ -44,7 +46,10 @@ export default function AppLayout({ children }) {
                 color={active ? '#e53030' : '#555'}
               />
               {item.route === 'Contatos' && totalUnreadCount > 0 ? (
-                <View style={styles.chatUnreadDot} />
+                <View style={styles.navUnreadDot} />
+              ) : null}
+              {item.route === 'Agenda' && hasAgendaUpdates && route.name !== 'Agenda' ? (
+                <View style={styles.navUnreadDot} />
               ) : null}
               <Text style={[styles.navLabel, active && styles.navLabelActive]}>
                 {item.label}
@@ -88,7 +93,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     position: 'relative',
   },
-  chatUnreadDot: {
+  navUnreadDot: {
     position: 'absolute',
     top: 7,
     right: 14,

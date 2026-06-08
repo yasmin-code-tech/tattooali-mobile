@@ -12,11 +12,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   StyleSheet,
-  SafeAreaView,
   StatusBar,
   Animated,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ReviewCard from '../components/ReviewCard';
 import { ArtistModal } from '../components/ArtistModal';
@@ -243,7 +243,7 @@ export default function MyReviewsScreen({ navigation, route }) {
   }, [navigation]);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
       <View style={styles.header}>

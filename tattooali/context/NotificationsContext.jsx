@@ -4,13 +4,22 @@ import React, {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { api } from '../lib/api';
 
 const NotificationsContext = createContext(null);
+const AGENDA_LAST_SEEN_KEY = '@tattooali:agenda_last_seen';
+
+const AGENDA_NOTIFICATION_TYPES = new Set([
+  'SESSION_CREATED',
+  'SESSION_CANCELED',
+  'REVIEW_AVAILABLE',
+]);
 
 const GET_ENDPOINTS = [
   '/api/notifications/me',
@@ -29,29 +38,116 @@ const READ_ONE_ENDPOINTS = [
   (id) => `/api/mobile/notifications/${id}/read`,
 ];
 
+function notificationSortKey(raw) {
+  const value =
+    raw?.createdAt ??
+    raw?.created_at ??
+    raw?.data_criacao ??
+    raw?.updatedAt ??
+    raw?.updated_at ??
+    null;
+  const ts = value ? new Date(value).getTime() : NaN;
+  return Number.isFinite(ts) ? ts : 0;
+}
+
 function mapNotification(raw, idx) {
-  const id = raw?.id ?? raw?.notification_id ?? `${idx}-${raw?.created_at || Date.now()}`;
+  const notificationId = raw?.notification_id ?? raw?.id;
+  const id = String(notificationId ?? `${idx}-${raw?.tipo || 'n'}`);
   const title = String(raw?.titulo || raw?.title || 'Notificação');
   const message = String(raw?.mensagem || raw?.message || '');
-  const createdAt = raw?.created_at || raw?.data_criacao || new Date().toISOString();
+  const sortTs = notificationSortKey(raw);
+  const sortId = Number(notificationId) || 0;
+  const createdAt =
+    raw?.createdAt ??
+    raw?.created_at ??
+    raw?.data_criacao ??
+    (sortTs > 0 ? new Date(sortTs).toISOString() : null);
   const isRead = Boolean(raw?.lida ?? raw?.read ?? false);
   const type = String(raw?.tipo || raw?.type || 'GENERAL');
   return {
-    id: String(id),
+    id,
     title,
     message,
     createdAt,
     isRead,
     type,
+    sortTs,
+    sortId,
     payload: raw,
   };
 }
 
+function sortNotifications(rows) {
+  return [...rows]
+    .sort((a, b) => {
+      if (b.sortTs !== a.sortTs) return b.sortTs - a.sortTs;
+      return b.sortId - a.sortId;
+    })
+    .map(({ sortTs, sortId, payload, ...rest }) => rest);
+}
+
+function isAgendaNotification(notification) {
+  return AGENDA_NOTIFICATION_TYPES.has(String(notification?.type || ''));
+}
+
+function agendaNotificationTs(notification) {
+  const ts = notification?.createdAt ? new Date(notification.createdAt).getTime() : 0;
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+async function loadAgendaLastSeenTs() {
+  try {
+    const raw = await AsyncStorage.getItem(AGENDA_LAST_SEEN_KEY);
+    const ts = Number(raw);
+    return Number.isFinite(ts) ? ts : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function persistAgendaLastSeenTs(ts) {
+  try {
+    await AsyncStorage.setItem(AGENDA_LAST_SEEN_KEY, String(ts));
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
+const POLL_MS = 10000;
+
 export function NotificationsProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [agendaLastSeenTs, setAgendaLastSeenTs] = useState(0);
+  const fetchSeqRef = useRef(0);
+  const itemsRef = useRef([]);
+  const agendaLastSeenRef = useRef(0);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    agendaLastSeenRef.current = agendaLastSeenTs;
+  }, [agendaLastSeenTs]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAgendaLastSeenTs(0);
+      agendaLastSeenRef.current = 0;
+      return undefined;
+    }
+    let alive = true;
+    loadAgendaLastSeenTs().then((ts) => {
+      if (!alive) return;
+      agendaLastSeenRef.current = ts;
+      setAgendaLastSeenTs(ts);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isAuthenticated]);
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) {
@@ -59,22 +155,25 @@ export function NotificationsProvider({ children }) {
       setError(null);
       return [];
     }
-    setLoading(true);
+
+    const seq = ++fetchSeqRef.current;
     setError(null);
     let lastErr = null;
+
     for (const endpoint of GET_ENDPOINTS) {
       try {
         const data = await api.get(endpoint);
+        if (seq !== fetchSeqRef.current) return [];
         const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
-        const mapped = rows.map(mapNotification).sort((a, b) => {
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
+        const mapped = sortNotifications(rows.map(mapNotification));
         setItems(mapped);
         return mapped;
       } catch (e) {
         lastErr = e;
       }
     }
+
+    if (seq !== fetchSeqRef.current) return [];
     setItems([]);
     setError(lastErr?.message || 'Não foi possível carregar notificações.');
     return [];
@@ -106,6 +205,17 @@ export function NotificationsProvider({ children }) {
     return false;
   }, []);
 
+  const markAgendaAsSeen = useCallback(async (notificationList) => {
+    const list = Array.isArray(notificationList) ? notificationList : itemsRef.current;
+    const maxFromAgenda = list
+      .filter(isAgendaNotification)
+      .reduce((max, n) => Math.max(max, agendaNotificationTs(n)), 0);
+    const next = Math.max(maxFromAgenda, Date.now());
+    agendaLastSeenRef.current = next;
+    setAgendaLastSeenTs(next);
+    await persistAgendaLastSeenTs(next);
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
@@ -114,7 +224,7 @@ export function NotificationsProvider({ children }) {
     if (!isAuthenticated) return undefined;
     const id = setInterval(() => {
       fetchNotifications();
-    }, 45000);
+    }, POLL_MS);
     return () => clearInterval(id);
   }, [isAuthenticated, fetchNotifications]);
 
@@ -132,17 +242,35 @@ export function NotificationsProvider({ children }) {
     [items],
   );
 
+  const hasAgendaUpdates = useMemo(
+    () =>
+      items.some(
+        (n) => isAgendaNotification(n) && agendaNotificationTs(n) > agendaLastSeenTs,
+      ),
+    [items, agendaLastSeenTs],
+  );
+
   const value = useMemo(
     () => ({
       notifications: items,
       unreadCount,
-      loading,
+      hasAgendaUpdates,
       error,
       refreshNotifications: fetchNotifications,
       markAllAsRead,
       markOneAsRead,
+      markAgendaAsSeen,
     }),
-    [items, unreadCount, loading, error, fetchNotifications, markAllAsRead, markOneAsRead],
+    [
+      items,
+      unreadCount,
+      hasAgendaUpdates,
+      error,
+      fetchNotifications,
+      markAllAsRead,
+      markOneAsRead,
+      markAgendaAsSeen,
+    ],
   );
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;

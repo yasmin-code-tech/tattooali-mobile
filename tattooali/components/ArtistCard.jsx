@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { colors } from '../theme';
+import { fullStarsFromRating } from '../utils/rating';
 
 function isRemoteUrl(s) {
   return s && /^https?:\/\//i.test(String(s));
 }
 
 const renderStars = (rating, size = 13) => {
-  const full = Math.floor(rating);
+  const full = fullStarsFromRating(rating);
   const empty = 5 - full;
   return (
     <Text style={[styles.stars, { fontSize: size }]}>
