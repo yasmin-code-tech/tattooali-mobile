@@ -53,31 +53,36 @@ export function NotificationsProvider({ children }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const fetchNotifications = useCallback(async () => {
+  const fetchNotifications = useCallback(async ({ silent = false } = {}) => {
     if (!isAuthenticated) {
       setItems([]);
       setError(null);
+      setLoading(false);
       return [];
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     let lastErr = null;
-    for (const endpoint of GET_ENDPOINTS) {
-      try {
-        const data = await api.get(endpoint);
-        const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
-        const mapped = rows.map(mapNotification).sort((a, b) => {
-          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-        });
-        setItems(mapped);
-        return mapped;
-      } catch (e) {
-        lastErr = e;
+    try {
+      for (const endpoint of GET_ENDPOINTS) {
+        try {
+          const data = await api.get(endpoint);
+          const rows = Array.isArray(data?.rows) ? data.rows : Array.isArray(data) ? data : [];
+          const mapped = rows.map(mapNotification).sort((a, b) => {
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          });
+          setItems(mapped);
+          return mapped;
+        } catch (e) {
+          lastErr = e;
+        }
       }
+      setItems([]);
+      setError(lastErr?.message || 'Não foi possível carregar notificações.');
+      return [];
+    } finally {
+      if (!silent) setLoading(false);
     }
-    setItems([]);
-    setError(lastErr?.message || 'Não foi possível carregar notificações.');
-    return [];
   }, [isAuthenticated]);
 
   const markAllAsRead = useCallback(async () => {
@@ -113,7 +118,7 @@ export function NotificationsProvider({ children }) {
   useEffect(() => {
     if (!isAuthenticated) return undefined;
     const id = setInterval(() => {
-      fetchNotifications();
+      fetchNotifications({ silent: true });
     }, 45000);
     return () => clearInterval(id);
   }, [isAuthenticated, fetchNotifications]);
@@ -121,7 +126,7 @@ export function NotificationsProvider({ children }) {
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
       if (state === 'active' && isAuthenticated) {
-        fetchNotifications();
+        fetchNotifications({ silent: true });
       }
     });
     return () => sub.remove();

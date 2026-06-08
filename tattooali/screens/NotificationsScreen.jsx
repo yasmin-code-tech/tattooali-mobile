@@ -42,7 +42,7 @@ export default function NotificationsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refreshNotifications();
+      refreshNotifications({ silent: true });
     }, [refreshNotifications]),
   );
 
