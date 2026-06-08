@@ -79,6 +79,7 @@ export function ConversationsProvider({ children }) {
   const seenAtByConversationRef = useRef({});
   const seenAtLoadedRef = useRef(false);
   const conversationsRef = useRef([]);
+  const activeConversationIdRef = useRef(null);
 
   useEffect(() => {
     localUnreadRef.current = localUnreadByConversation;
@@ -189,56 +190,12 @@ export function ConversationsProvider({ children }) {
     return () => clearInterval(id);
   }, [isAuthenticated, refreshThreads]);
 
-  useEffect(() => {
-    let alive = true;
-    async function setupRealtime() {
-      if (!isAuthenticated || !isSupabaseConfigured()) return;
-      const token = await AsyncStorage.getItem(TOKEN_KEY);
-      if (!token || !alive) return;
-      const supabase = createSupabaseAuthed(token);
-      const channel = supabase
-        .channel('threads:badge')
-        .on(
-          'postgres_changes',
-          { event: 'INSERT', schema: 'public', table: 'chat_messages' },
-          (payload) => {
-            const row = payload?.new || {};
-            const conversationId = row.conversation_id;
-            const senderId = row.sender_id;
-            if (
-              conversationId != null &&
-              senderId &&
-              mySubRef.current &&
-              String(senderId) !== String(mySubRef.current)
-            ) {
-              setLocalUnreadByConversation((prev) => ({
-                ...prev,
-                [conversationId]: (prev[conversationId] || 0) + 1,
-              }));
-            }
-            if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
-            realtimeTimerRef.current = setTimeout(() => {
-              refreshThreads();
-            }, 350);
-          },
-        )
-        .subscribe();
-      realtimeUnsubRef.current = () => {
-        supabase.removeChannel(channel);
-      };
-    }
-    setupRealtime();
-    return () => {
-      alive = false;
-      if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
-      if (realtimeUnsubRef.current) realtimeUnsubRef.current();
-      realtimeUnsubRef.current = null;
-    };
-  }, [isAuthenticated, refreshThreads]);
+  const markAsReadRef = useRef(() => {});
 
   const markAsRead = useCallback((conversationId, atIso) => {
     const currentConversations = conversationsRef.current;
     if (!conversationId) {
+      activeConversationIdRef.current = null;
       const now = Date.now();
       const seenNext = { ...seenAtByConversationRef.current };
       for (const c of currentConversations) {
@@ -278,6 +235,83 @@ export function ConversationsProvider({ children }) {
       ),
     );
   }, []);
+
+  markAsReadRef.current = markAsRead;
+
+  const setActiveConversationId = useCallback((conversationId) => {
+    activeConversationIdRef.current =
+      conversationId != null && conversationId !== ''
+        ? String(conversationId)
+        : null;
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    async function setupRealtime() {
+      if (!isAuthenticated || !isSupabaseConfigured()) return;
+      const token = await AsyncStorage.getItem(TOKEN_KEY);
+      if (!token || !alive) return;
+      const supabase = createSupabaseAuthed(token);
+      const channel = supabase
+        .channel('threads:badge')
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'chat_messages' },
+          (payload) => {
+            const row = payload?.new || {};
+            const conversationId = row.conversation_id;
+            const senderId = row.sender_id;
+            if (
+              conversationId != null &&
+              senderId &&
+              mySubRef.current &&
+              String(senderId) !== String(mySubRef.current)
+            ) {
+              const convKey = String(conversationId);
+              if (activeConversationIdRef.current === convKey) {
+                markAsReadRef.current(conversationId, row.created_at);
+              } else {
+                setLocalUnreadByConversation((prev) => ({
+                  ...prev,
+                  [conversationId]: (prev[conversationId] || 0) + 1,
+                }));
+                setConversations((prev) =>
+                  prev.map((c) =>
+                    String(c.conversationId) === convKey
+                      ? {
+                          ...c,
+                          unreadCount: (Number(c.unreadCount) || 0) + 1,
+                          lastMessage: row.body || c.lastMessage,
+                          lastInteraction: row.created_at
+                            ? new Date(row.created_at)
+                            : c.lastInteraction,
+                          isLastMessageMine: false,
+                        }
+                      : c,
+                  ),
+                );
+              }
+            }
+            if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+            realtimeTimerRef.current = setTimeout(() => {
+              refreshThreads();
+            }, 350);
+          },
+        )
+        .subscribe();
+      realtimeUnsubRef.current = () => {
+        supabase.removeChannel(channel);
+      };
+    }
+    setupRealtime();
+    return () => {
+      alive = false;
+      if (realtimeTimerRef.current) clearTimeout(realtimeTimerRef.current);
+      if (realtimeUnsubRef.current) realtimeUnsubRef.current();
+      realtimeUnsubRef.current = null;
+    };
+  }, [isAuthenticated, refreshThreads]);
+
   const totalUnreadCount = useMemo(
     () => conversations.reduce((sum, c) => sum + (c.unreadCount ?? 0), 0),
     [conversations],
@@ -291,9 +325,10 @@ export function ConversationsProvider({ children }) {
       error,
       refreshThreads,
       markAsRead,
+      setActiveConversationId,
       isSupabaseReady: isSupabaseConfigured(),
     }),
-    [conversations, totalUnreadCount, loading, error, refreshThreads, markAsRead],
+    [conversations, totalUnreadCount, loading, error, refreshThreads, markAsRead, setActiveConversationId],
   );
 
   return (

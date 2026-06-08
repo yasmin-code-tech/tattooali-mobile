@@ -32,7 +32,8 @@ const ContactItem = React.memo(({ item, onPress }) => {
       {/* Avatar */}
       <View style={styles.avatarWrap}>
         <Text style={styles.avatarEmoji}>{item.avatar}</Text>
-        {item.isOnline && <View style={styles.onlineDot} />}
+        {hasUnread ? <View style={styles.unreadDot} /> : null}
+        {item.isOnline && !hasUnread ? <View style={styles.onlineDot} /> : null}
       </View>
 
       {/* Text info */}
@@ -82,13 +83,12 @@ const Separator = () => <View style={styles.separator} />;
 // ─── CONTACTS SCREEN ──────────────────────────────────────────
 export default function ContactsScreen({ navigation }) {
   const { user } = useAuth();
-  const { conversations, refreshThreads, markAsRead, error, isSupabaseReady, loading } = useConversations();
+  const { conversations, refreshThreads, error, isSupabaseReady, loading } = useConversations();
 
   useFocusEffect(
     useCallback(() => {
-      markAsRead();
       refreshThreads();
-    }, [markAsRead, refreshThreads]),
+    }, [refreshThreads]),
   );
 
   // Ordena por mais recente
@@ -251,6 +251,17 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: C.green,
+    borderWidth: 2,
+    borderColor: C.ink,
+  },
+  unreadDot: {
+    position: 'absolute',
+    top: -1,
+    right: -1,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: C.red,
     borderWidth: 2,
     borderColor: C.ink,
   },

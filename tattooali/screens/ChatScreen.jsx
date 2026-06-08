@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   FlatList,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Image,
   ActivityIndicator,
@@ -15,7 +16,7 @@ import {
   Pressable,
 } from 'react-native';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -35,6 +36,7 @@ import {
 import { useConversations } from '../context/ConversationsContext';
 
 const TOKEN_KEY = '@tattooali:token';
+const KEYBOARD_EXTRA_GAP = 24;
 
 function isRemoteUrl(s) {
   return s && /^https?:\/\//i.test(String(s));
@@ -56,9 +58,27 @@ export default function ChatScreen() {
   const [error, setError] = useState(null);
   const flatListRef = useRef(null);
   const fileInputRef = useRef(null);
-  const { markAsRead } = useConversations();
+  const { markAsRead, setActiveConversationId } = useConversations();
+  const insets = useSafeAreaInsets();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   const mySubRef = useRef(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const onShow = (event) => {
+      setKeyboardHeight(event.endCoordinates?.height ?? 0);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 80);
+    };
+    const onHide = () => setKeyboardHeight(0);
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, []);
 
   const showUserMessage = (title, message) => {
     if (Platform.OS === 'web') {
@@ -117,8 +137,12 @@ export default function ChatScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (conversationId) markAsRead(conversationId);
-    }, [conversationId, markAsRead]),
+      if (conversationId) {
+        setActiveConversationId(conversationId);
+        markAsRead(conversationId);
+      }
+      return () => setActiveConversationId(null);
+    }, [conversationId, markAsRead, setActiveConversationId]),
   );
 
   useEffect(() => {
@@ -328,11 +352,16 @@ export default function ChatScreen() {
     );
   }
 
+  const keyboardLift = keyboardHeight > 0 ? keyboardHeight + KEYBOARD_EXTRA_GAP : 0;
+  const androidKeyboardLift = Platform.OS === 'android' ? keyboardLift : 0;
+  const inputBottomPadding = keyboardHeight > 0 ? 8 : Math.max(insets.bottom, 8);
+
   return (
     <SafeAreaView testID="chat-screen" style={styles.safeArea} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView
-        style={styles.container}
+        style={[styles.container, androidKeyboardLift > 0 && { paddingBottom: androidKeyboardLift }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? KEYBOARD_EXTRA_GAP : 0}
       >
         <View style={styles.header}>
           <TouchableOpacity testID="chat-back" onPress={() => navigation.goBack()} style={styles.backButton}>
@@ -363,22 +392,25 @@ export default function ChatScreen() {
         ) : null}
 
         {loading ? (
-          <View style={{ padding: 24, alignItems: 'center' }}>
+          <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#e53030" />
           </View>
         ) : (
           <FlatList
             ref={flatListRef}
+            style={styles.messagesList}
             data={messages}
             keyExtractor={(item) => item.id}
             renderItem={renderMessage}
             contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
           />
         )}
 
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { paddingBottom: inputBottomPadding }]}>
           <TouchableOpacity
             testID="chat-attach-image"
             style={[styles.attachButton, (!conversationId || sendingImage) && { opacity: 0.45 }]}
@@ -400,6 +432,9 @@ export default function ChatScreen() {
             onChangeText={setInputText}
             multiline
             editable={!!conversationId && !error && !sendingImage}
+            onFocus={() => {
+              setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+            }}
           />
           <TouchableOpacity
             testID="chat-send"
@@ -529,6 +564,15 @@ const styles = StyleSheet.create({
   offlineStatus: {
     color: '#555',
     fontSize: 12,
+  },
+  loadingWrap: {
+    flex: 1,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  messagesList: {
+    flex: 1,
   },
   listContent: {
     padding: 16,
