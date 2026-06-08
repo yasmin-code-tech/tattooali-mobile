@@ -64,7 +64,7 @@ function getClienteAppUserId(sessao) {
 export default function AgendaScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
-  const { refreshNotifications } = useNotifications();
+  const { refreshNotifications, markAgendaAsSeen } = useNotifications();
   const viewerIsCliente = user?.role === 'cliente';
   /** Quando role veio como tatuador mas a pessoa só tem sessões como cliente (CPF na agenda). */
   const [listLoadKind, setListLoadKind] = useState({
@@ -240,8 +240,15 @@ export default function AgendaScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      refreshNotifications();
-    }, [refreshNotifications]),
+      let active = true;
+      (async () => {
+        const list = await refreshNotifications();
+        if (active) await markAgendaAsSeen(list);
+      })();
+      return () => {
+        active = false;
+      };
+    }, [refreshNotifications, markAgendaAsSeen]),
   );
 
   useEffect(() => {

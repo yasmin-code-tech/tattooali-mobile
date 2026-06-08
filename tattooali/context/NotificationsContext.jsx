@@ -8,10 +8,18 @@ import React, {
   useState,
 } from 'react';
 import { AppState } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from './AuthContext';
 import { api } from '../lib/api';
 
 const NotificationsContext = createContext(null);
+const AGENDA_LAST_SEEN_KEY = '@tattooali:agenda_last_seen';
+
+const AGENDA_NOTIFICATION_TYPES = new Set([
+  'SESSION_CREATED',
+  'SESSION_CANCELED',
+  'REVIEW_AVAILABLE',
+]);
 
 const GET_ENDPOINTS = [
   '/api/notifications/me',
@@ -78,13 +86,68 @@ function sortNotifications(rows) {
     .map(({ sortTs, sortId, payload, ...rest }) => rest);
 }
 
+function isAgendaNotification(notification) {
+  return AGENDA_NOTIFICATION_TYPES.has(String(notification?.type || ''));
+}
+
+function agendaNotificationTs(notification) {
+  const ts = notification?.createdAt ? new Date(notification.createdAt).getTime() : 0;
+  return Number.isFinite(ts) ? ts : 0;
+}
+
+async function loadAgendaLastSeenTs() {
+  try {
+    const raw = await AsyncStorage.getItem(AGENDA_LAST_SEEN_KEY);
+    const ts = Number(raw);
+    return Number.isFinite(ts) ? ts : 0;
+  } catch {
+    return 0;
+  }
+}
+
+async function persistAgendaLastSeenTs(ts) {
+  try {
+    await AsyncStorage.setItem(AGENDA_LAST_SEEN_KEY, String(ts));
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
 const POLL_MS = 10000;
 
 export function NotificationsProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const [items, setItems] = useState([]);
   const [error, setError] = useState(null);
+  const [agendaLastSeenTs, setAgendaLastSeenTs] = useState(0);
   const fetchSeqRef = useRef(0);
+  const itemsRef = useRef([]);
+  const agendaLastSeenRef = useRef(0);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    agendaLastSeenRef.current = agendaLastSeenTs;
+  }, [agendaLastSeenTs]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAgendaLastSeenTs(0);
+      agendaLastSeenRef.current = 0;
+      return undefined;
+    }
+    let alive = true;
+    loadAgendaLastSeenTs().then((ts) => {
+      if (!alive) return;
+      agendaLastSeenRef.current = ts;
+      setAgendaLastSeenTs(ts);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isAuthenticated]);
 
   const fetchNotifications = useCallback(async () => {
     if (!isAuthenticated) {
@@ -142,6 +205,17 @@ export function NotificationsProvider({ children }) {
     return false;
   }, []);
 
+  const markAgendaAsSeen = useCallback(async (notificationList) => {
+    const list = Array.isArray(notificationList) ? notificationList : itemsRef.current;
+    const maxFromAgenda = list
+      .filter(isAgendaNotification)
+      .reduce((max, n) => Math.max(max, agendaNotificationTs(n)), 0);
+    const next = Math.max(maxFromAgenda, Date.now());
+    agendaLastSeenRef.current = next;
+    setAgendaLastSeenTs(next);
+    await persistAgendaLastSeenTs(next);
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
   }, [fetchNotifications]);
@@ -168,16 +242,35 @@ export function NotificationsProvider({ children }) {
     [items],
   );
 
+  const hasAgendaUpdates = useMemo(
+    () =>
+      items.some(
+        (n) => isAgendaNotification(n) && agendaNotificationTs(n) > agendaLastSeenTs,
+      ),
+    [items, agendaLastSeenTs],
+  );
+
   const value = useMemo(
     () => ({
       notifications: items,
       unreadCount,
+      hasAgendaUpdates,
       error,
       refreshNotifications: fetchNotifications,
       markAllAsRead,
       markOneAsRead,
+      markAgendaAsSeen,
     }),
-    [items, unreadCount, error, fetchNotifications, markAllAsRead, markOneAsRead],
+    [
+      items,
+      unreadCount,
+      hasAgendaUpdates,
+      error,
+      fetchNotifications,
+      markAllAsRead,
+      markOneAsRead,
+      markAgendaAsSeen,
+    ],
   );
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
